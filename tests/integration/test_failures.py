@@ -206,3 +206,17 @@ async def test_control_characters_only_message_is_treated_as_blank(clock) -> Non
     async with launch(clock, ScriptedLLM([])) as client:
         r = await chat(client, "acme", "A001", "\u0000\u0001\u0002", clock.now())
         assert r.status_code == 422 and "type a message" in r.json()["reply"]
+
+
+async def test_dev_reseed_resets_demo_data(clock) -> None:
+    llm = ScriptedLLM([tool(RS, change_type="reschedule", trip_type="drop", date_text="today", time_text="9 pm")])
+    async with launch(clock, llm) as client:
+        done = (await chat(client, "acme", "A001", "move my drop today to 9 pm", clock.now())).json()
+        assert done["request"]["status"] == "APPLIED"
+        r = await client.post("/dev/reseed")
+        assert r.status_code == 200 and r.json()["base_date"] == "2026-03-02"
+        roster = (await client.get("/me/roster", headers=bearer("acme", "A001", clock.now()))).json()["entries"]
+        assert [e["trip_id"] for e in roster if e["id"] == "RE-A001-D0-DROP"] == ["ACME-R1-DROP-D0-1900"]
+        assert (await client.get("/dev/clock")).json()["now"].startswith("2026-03-02T15:00")
+    async with launch(clock, ScriptedLLM([]), env="prod") as client:
+        assert (await client.post("/dev/reseed")).status_code == 404

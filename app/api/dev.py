@@ -11,7 +11,8 @@ from pydantic import BaseModel, ConfigDict, Field
 from app.api.errors import AppError
 from app.auth.jwt import issue_token
 from app.db.repositories import employees
-from app.domain.clock import parse_aware
+from app.db.seed import reseed
+from app.domain.clock import DEFAULT_TZ, parse_aware
 
 router = APIRouter(prefix="/dev", tags=["dev"])
 
@@ -63,6 +64,23 @@ async def dev_people(request: Request) -> dict:
 class ClockBody(BaseModel):
     model_config = ConfigDict(extra="forbid")
     now: str | None = Field(default=None, max_length=40, description="ISO datetime, or null to use real time")
+
+
+@router.get("/clock", dependencies=[Depends(dev_only)])
+async def dev_clock_now(request: Request) -> dict:
+    clock = request.app.state.clock
+    return {"now": clock.now().isoformat(), "overridden": bool(getattr(clock, "overridden", False))}
+
+
+@router.post("/reseed", dependencies=[Depends(dev_only)])
+async def dev_reseed(request: Request) -> dict:
+    """Reset the demo: reload seed data with D0 = today (by the demo clock) and wipe all conversations."""
+    state = request.app.state
+    base_date = state.clock.now().astimezone(DEFAULT_TZ).date()
+    async with state.pool.connection() as conn:
+        await reseed(conn, base_date)
+    state.faults.clear()
+    return {"base_date": base_date.isoformat()}
 
 
 @router.post("/clock", dependencies=[Depends(dev_only)])
