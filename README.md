@@ -15,7 +15,10 @@ tells the employee plainly what happened.
 docker compose up --build        # API + demo UI on http://localhost:8000
 ```
 
-Open <http://localhost:8000>: left pane is the employee chat, right pane is the manager console.
+Open <http://localhost:8000>: left pane is the employee chat (pick a seeded person, *Sign in* mints a dev
+JWT and shows its claims; your own trips are shown above the chat), right pane is the transport-manager console
+(pending queue with approve/reject, history, per-request audit trail). The header has the demo controls: the agent
+clock (presets 3:00 / 5:30 / 6:45 PM to show the cut-off rules), a tool-timeout switch and *reset demo data*.
 Swagger is at `/docs`. No API key is needed to start: without one the agent uses a deterministic
 rule-based interpreter for canonical phrasings (e.g. *"change my drop today to 8:30 pm"*).
 For the full natural-language experience, copy `.env.example` to `.env` and set `GROQ_API_KEY` +
@@ -46,10 +49,25 @@ Stack: Python 3.12, FastAPI, LangGraph 1.x (Postgres checkpointer), Postgres 16,
 psycopg 3, langchain-openai (OpenAI-compatible client for Groq/Gemini). One process, one database; no Redis.
 Full design: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), behaviour contract: [docs/SPEC.md](docs/SPEC.md).
 
+## Where the LLM earns its place, and where plain code is better
+
+| Job | Owner | Why |
+|---|---|---|
+| Understanding "can I go a bit late?", "make it 9 instead", "the 8:30 one", basic Hinglish | **LLM** | Real language variety; this is the model's job |
+| Choosing the tool | **LLM**, validated by the gate | Intent routing over fuzzy language |
+| Turning "8", "half past 8", "30 min later" into a time | Code (`time_resolver.py`) | Deterministic, testable, asks when ambiguous |
+| Who the user is, which company | Code (JWT only) | Must never come from user text or model output |
+| Cut-off, capacity, change window, daily limit | Code (`domain/rules/`) | Exact, per company, unit-tested at the boundaries |
+| Nearest free cab | Code (`alternatives.py`) | A sort by time distance; an LLM adds nothing |
+| Booking the seat | Code (one SQL transaction) | Atomic under concurrency |
+| Every sentence that states an outcome | Code (`templates.py`) | A made-up confirmation is worse than none |
+| Small talk ("thanks!") | LLM, through a guard that blocks outcome claims | Harmless if it can't claim anything |
+
 ## How we stay under 4 LLM calls per message
 
 A counter in code (`TurnBudget`, `app/llm/base.py`) wraps the model for each turn and raises at the cap
-(`MAX_LLM_CALLS_PER_TURN`, default 4); failed calls count too. Typical turn = **1** call, because:
+(`MAX_LLM_CALLS_PER_TURN`, default 4). Every request that reaches a provider counts, including failed ones and a
+fallback retry (Groq fails → Gemini = 2 calls), so the cap holds under the strictest reading. Typical turn = **1** call, because:
 the roster snapshot is already in the prompt (no read-tool round trip); after a mutating tool the model is
 **not** called again (a template states the outcome); clarifying questions are templates too. The only
 extra call is one *repair* attempt when the model emits an invalid tool call. Measured over the eval set:
@@ -66,7 +84,7 @@ max 2 calls in any turn, mean 1.01 (scripted); with a real model: always 1.
 | Database | Composite FKs `(company_id, …)`: a cross-tenant reference can't be stored | `test_cross_tenant_fk` |
 | Threads | `thread_id = company:employee:session`, built server-side | `test_session_id_of_another_user_is_an_empty_separate_thread`, ISO-05 |
 | Wording | Templates only get the caller's company/policy | `test_acme_cutoff_offers_escalation_and_acme_numbers_only`, ISO-08 |
-| Manager | Same company or **404** (not 403, so existence isn't leaked) | `test_iso06_other_company_manager_gets_404…` |
+| Manager | Same company or **404** (not 403, so existence isn't leaked); also for the audit trail | `test_iso06_other_company_manager_gets_404…`, `test_manager_queue_is_readable_and_audit_trail_shows_who_decided` |
 
 ## Design decisions
 
@@ -85,10 +103,13 @@ max 2 calls in any turn, mean 1.01 (scripted); with a real model: always 1.
 - **Polling instead of push** for the approval message in the UI (every 2 s).
 - **An assumed date** (the model says "today" though the user didn't) is accepted only when it is the soonest upcoming trip of that type; strict grounding applies to *times*, where a silent guess would change the booking.
 - **Postgres advisory locks** serialise a thread across workers instead of introducing Redis.
+- **Audit log in the same database** as the bookings, written in the same transaction, so "who asked for what and who decided" can never disagree with what was applied (`GET /manager/requests/{id}/audit`).
 
 ## Known limitations
 
-Single timezone per company (seed uses Asia/Kolkata); English plus basic Hinglish only; no real notifications
+Free-tier capacity: one agent call costs about 1,250 tokens and Groq's free tier allows 200,000 tokens/day for the
+model used, i.e. roughly 160 messages a day before the Gemini fallback and then the rule-based mode take over.
+A cancelled trip can't be re-booked through the chat. Single timezone per company (seed uses Asia/Kolkata); English plus basic Hinglish only; no real notifications
 (messages appear in the chat thread); manager auth is a dev JWT issuer; no seat holds. See
 [docs/EVAL_REPORT.md](docs/EVAL_REPORT.md) for test results and known failures.
 

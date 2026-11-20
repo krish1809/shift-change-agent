@@ -4,7 +4,7 @@
 
 | Layer | Result |
 |---|---|
-| pytest suite (fake LLM, real Postgres, frozen clock) | **308 passed** |
+| pytest suite (fake LLM, real Postgres, frozen clock) | **317 passed** |
 | Evaluation set, fake mode (`eval/results.fake.jsonl`) | **60 / 60 passed** (9 categories) |
 | LLM calls per message (all eval turns) | mean **1.01**, max **2** (cap 4) |
 | In-process reply latency, fake model (84 turns) | p50 58 ms, p95 100 ms, max 1,152 ms (max = deliberate tool timeout/retry cases) |
@@ -54,6 +54,14 @@ agent retries on the Gemini fallback, which takes 3-4 s. A paid tier or a second
    - *Provider issues*: the Gemini fallback model I first chose (`gemini-2.5-flash-lite`) is retired for new accounts (404) and `gemini-3.5-flash-lite` was too slow (>3 s); `gemini-3.1-flash-lite` works. The default per-call timeout is now 4 s. Free-tier Groq returns 429 under load, which the chain handles (fallback provider, then rule-based, then a plain message).
    - Some of my own cases said "8 pm" without saying drop/pickup; asking was correct, so the wording was fixed (and 3 cases accept a safe alternative in live mode, e.g. a polite prose refusal, recorded in each case's notes).
 
+8. **Code review before submission found five more bugs, each now with a regression test that fails on the old code:**
+   - asking again after a manager rejection was reported as a *duplicate* (escalation key didn't vary per offer);
+   - in a paused chat, *status* / *withdraw it* could target another chat's request;
+   - a chat whose request was withdrawn elsewhere stayed in "waiting for manager" mode;
+   - the follow-up "what time instead?" always said *today*;
+   - **with the demo clock set ahead of real time every JWT was rejected** (PyJWT checked `iat` against the wall clock). Found by walking through the demo, not by the suite, because test clocks are in the past.
+9. **Free-tier quota.** A later live rerun hit Groq's daily token limit (200,000 tokens/day; one call ≈ 1,250 tokens ≈ 160 messages/day). The affected turns ended in the plain "nothing was changed, try again" reply, which is the designed behaviour. The committed live results are from the earlier full run; tool descriptions were refined after it (to fix two tool-choice slips seen live) and a fresh live run is pending the quota reset.
+
 ## 5. Known failures and limitations
 
 - Live pass rate depends on provider health: on free tiers a run can hit 429/503 and a case then fails with a plain "nothing was changed, try again" reply (this happened once for INP-03 during development and passed on rerun). The final committed live run is 36/36.
@@ -72,7 +80,7 @@ agent retries on the Gemini fallback, which takes 3-4 s. A paid tier or a second
 ## 7. Reproduce
 
 ```bash
-docker compose run --rm tests        # 308 tests
+docker compose run --rm tests        # 317 tests
 docker compose run --rm eval         # writes eval/results.fake.jsonl (60/60)
 make eval-live                       # needs GROQ_API_KEY + GROQ_MODEL in .env
 make bench                           # live p50/p95 -> eval/latency.json

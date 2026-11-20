@@ -347,3 +347,23 @@ tests/ unit/  integration/  conftest.py
 | Hold the seat during approval | Blocks scarce seats for hours. Re-validate instead |
 | LLM-as-judge for eval | Non-reproducible, quota-dependent. Deterministic checks on status, tools and DB state instead |
 | Let the LLM output resolved times | Model can silently guess. Verbatim span + deterministic resolver turns guesses into questions |
+
+---
+
+## 13. As built: where the implementation refines this design
+
+The sections above are the original design. These are the deliberate differences in the code, each with its reason.
+
+| # | Design said | Built | Why |
+|---|---|---|---|
+| 1 | Gate resolves slots (time/date/option) | Gate does the static checks (allowlist, schema, one call per turn, span grounding); `app/tools/handlers/shift.py` resolves slots | Resolution needs the roster and trips (DB reads); the gate stays pure |
+| 2 | Separate `clarify` and `pending_chat` nodes | Clarifications are typed results rendered by `respond_outcome`; pending mode reuses the normal path with a restricted tool allowlist | Fewer nodes, one rendering path |
+| 3 | At most one *mutating* call per turn | Exactly one tool call per turn | One typed result per reply; no mixed outcomes |
+| 4 | Span grounding for every span | Strict for times and options; an ungrounded **date** is accepted only if it is the soonest trip of that type; equivalent spellings (`9:00 pm` vs `9 pm`) count as grounded, a bare `8` never becomes `20:00` | Found with the live model: strict grounding made the agent ask "which day?" for "the 8 pm drop" |
+| 5 | Missing date -> ask unless exactly one entry | Trip type known, day missing -> the **next** trip of that type; reply names the day | What a desk executive does; the reply makes the assumption visible |
+| 6 | `SEED_ON_START=true` | `if_empty` | Reseeding on restart would wipe the very approvals that must survive a restart |
+| 7 | Escalation key from the change | Key includes a per-offer id | Asking again after a rejection must be a new request, not a "duplicate" of the rejected one |
+| 8 | LLM call cap per turn | Every provider attempt counts (fallback included) | Strictest reading of "at most 4 LLM calls" |
+| 9 | JWT `exp` checked | All time claims checked against the injected clock | The demo clock can be set ahead; wall-clock `iat` checks rejected valid demo tokens |
+| 10 | Seat lock `FOR UPDATE` | `FOR NO KEY UPDATE`, both trips in id order, before the request insert | Plain `FOR UPDATE` deadlocked with the FK `KEY SHARE` lock in the last-seat race test |
+| 11 | Audit log written | Also exposed: `GET /manager/requests/{id}/audit` | "Who asked for what and who decided" should be readable, not just stored |
