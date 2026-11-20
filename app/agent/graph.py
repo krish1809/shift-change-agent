@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from datetime import timedelta
 from typing import Any, Literal
 
 from langgraph.graph import END, START, StateGraph
@@ -23,13 +24,14 @@ from app.agent.context import RunContext
 from app.agent.guard import check_prose
 from app.agent.state import ConversationState
 from app.db.repositories import audit, roster
+from app.db.repositories import requests as requests_repo
 from app.domain.formatting import fmt_day, fmt_time
 from app.llm.base import BudgetExceeded, LLMError
 from app.llm.rule_based import interpret as rule_based_interpret
 from app.tools.context import ToolContext
 from app.tools.executor import execute_tool
 from app.tools.gate import GateError, ValidCall, select_call, validate_call
-from app.tools.registry import tool_schemas
+from app.tools.registry import REGISTRY, tool_schemas
 from app.tools.results import ToolResult
 
 log = logging.getLogger(__name__)
@@ -50,8 +52,6 @@ async def _roster_lines(ctx: RunContext) -> list[str]:
     """Today + tomorrow, as the employee would describe them. Read for the caller's own identity only."""
     await ctx.faults.before("roster_repo")
     today = ctx.clock.now().astimezone(ctx.company.tz).date()
-    from datetime import timedelta
-
     async with ctx.pool.connection() as conn:
         entries = await roster.get_entries_for_employee(
             conn, ctx.auth.company_id, ctx.auth.employee_id, [today, today + timedelta(days=1)]
@@ -101,12 +101,25 @@ def _assistant_message(ctx: RunContext, text: str) -> dict[str, str]:
 # ------------------------------------------------------------------ nodes
 
 
+async def _still_pending(ctx: RunContext, request_id: str | None) -> bool:
+    """The request this chat waits on may have been finished elsewhere (e.g. withdrawn from another chat)."""
+    if not request_id:
+        return False
+    async with ctx.pool.connection() as conn:
+        request = await requests_repo.get_request(
+            conn, ctx.auth.company_id, request_id, employee_id=ctx.auth.employee_id
+        )
+    return request is not None and request.status == "PENDING_APPROVAL"
+
+
 async def ingest(state: ConversationState, runtime: Rt) -> dict[str, Any]:
     ctx = runtime.context
     text = state["user_text"]
+    pending = await _still_pending(ctx, state.get("pending_request_id"))
     return {
         "messages": [{"role": "user", "content": text, "at": ctx.clock.now().isoformat()}],
-        "mode": "pending" if state.get("pending_request_id") else "normal",
+        "mode": "pending" if pending else "normal",
+        "pending_request_id": state.get("pending_request_id") if pending else None,
         "roster_lines": await _roster_lines(ctx),
         "llm_response": None, "degraded": False, "repair_note": None, "repairs": 0, "call": None,
         "result": None, "fail_reason": None, "tools_called": [], "reply": None, "status": None,
@@ -161,7 +174,7 @@ def route_after_interpret(state: ConversationState) -> Literal["tool_gate", "gua
 
 async def tool_gate(state: ConversationState, runtime: Rt) -> dict[str, Any]:
     ctx = runtime.context
-    first, dropped = select_call((state["llm_response"] or {}).get("tool_calls", []), state.get("mode", "normal"))
+    first, dropped = select_call((state["llm_response"] or {}).get("tool_calls", []))
     if dropped:
         log.info("extra tool calls dropped", extra={"fields": {"dropped": dropped}})
     verdict = validate_call(first or {}, mode=state.get("mode", "normal"), user_texts=_user_texts(state))
@@ -203,8 +216,6 @@ async def execute(state: ConversationState, runtime: Rt) -> dict[str, Any]:
     call = state["call"] or {}
     tool_ctx = _tool_context(state, ctx)
     tool_ctx.ungrounded = set(call.get("ungrounded", []))
-    from app.tools.registry import REGISTRY
-
     args = REGISTRY[call["name"]].args_model.model_validate(call["args"])
     result = await execute_tool(tool_ctx, call["name"], args)
     ctx.tool_calls.append(call["name"])
