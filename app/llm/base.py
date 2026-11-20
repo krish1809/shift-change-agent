@@ -66,12 +66,20 @@ class TurnBudget:
 
 
 class BudgetedLLM:
-    """Wraps any ChatLLM for one turn. A call is counted even if it fails: it still cost quota/time."""
+    """Wraps any ChatLLM for one turn.
+
+    Every request that reaches a provider is counted, even if it fails (it still cost quota and time), and
+    a fallback attempt counts as a separate call. So "at most 4 LLM calls" holds even under the strictest
+    reading: at most 4 provider requests per employee message.
+    """
 
     def __init__(self, inner: ChatLLM, budget: TurnBudget) -> None:
         self._inner = inner
         self.budget = budget
 
     async def invoke(self, messages: list[Message], tools: list[dict[str, Any]], *, timeout_s: float) -> LLMResponse:
+        counted = getattr(self._inner, "invoke_counted", None)
+        if counted is not None:  # a provider chain: let it charge each attempt
+            return await counted(messages, tools, timeout_s=timeout_s, spend=self.budget.spend)
         self.budget.spend()
         return await self._inner.invoke(messages, tools, timeout_s=timeout_s)

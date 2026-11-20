@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
+from collections.abc import Callable
 from typing import Any
 
 import openai
@@ -12,6 +13,7 @@ from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, System
 from langchain_openai import ChatOpenAI
 
 from app.llm.base import (
+    BudgetExceeded,
     ChatLLM,
     LLMBadOutput,
     LLMError,
@@ -94,6 +96,17 @@ class FallbackLLM:
         self._providers = providers
 
     async def invoke(self, messages: list[Message], tools: list[dict[str, Any]], *, timeout_s: float) -> LLMResponse:
+        return await self.invoke_counted(messages, tools, timeout_s=timeout_s, spend=None)
+
+    async def invoke_counted(
+        self,
+        messages: list[Message],
+        tools: list[dict[str, Any]],
+        *,
+        timeout_s: float,
+        spend: Callable[[], None] | None,
+    ) -> LLMResponse:
+        """`spend` is charged once per provider attempt (raises BudgetExceeded when the turn's cap is hit)."""
         loop = asyncio.get_running_loop()
         deadline = loop.time() + timeout_s
         last: LLMError | None = None
@@ -101,6 +114,13 @@ class FallbackLLM:
             remaining = deadline - loop.time()
             if last is not None and remaining < self.MIN_TIME_FOR_FALLBACK_S:
                 break
+            if spend is not None:
+                try:
+                    spend()
+                except BudgetExceeded:
+                    if last is not None:
+                        raise last from None  # report the provider failure, not the cap
+                    raise
             try:
                 return await provider.invoke(messages, tools, timeout_s=max(remaining, 0.1))
             except LLMError as exc:

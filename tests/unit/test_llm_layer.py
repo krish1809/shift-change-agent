@@ -207,3 +207,21 @@ def test_rule_based_never_invents_a_tool_call(text) -> None:
 async def test_rule_based_implements_the_chat_protocol() -> None:
     result = await RuleBasedLLM().invoke([{"role": "user", "content": "thanks!"}], [], timeout_s=1)
     assert result.text and result.tool_calls == []
+
+
+async def test_each_fallback_attempt_spends_budget() -> None:
+    """Strict reading of the cap: a Groq failure + Gemini retry is TWO calls, not one."""
+    primary = ScriptedLLM([{"raise": "rate_limit"}])
+    backup = ScriptedLLM([{"tool": "get_my_policy", "args": {}}])
+    budget = TurnBudget(4)
+    result = await BudgetedLLM(FallbackLLM([primary, backup]), budget).invoke([], [], timeout_s=3)
+    assert result.tool_calls and budget.calls == 2
+
+
+async def test_fallback_stops_at_the_cap_and_reports_the_provider_error() -> None:
+    primary = ScriptedLLM([{"raise": "rate_limit"}])
+    backup = ScriptedLLM([{"tool": "get_my_policy", "args": {}}])
+    budget = TurnBudget(1)
+    with pytest.raises(LLMRateLimited):
+        await BudgetedLLM(FallbackLLM([primary, backup]), budget).invoke([], [], timeout_s=3)
+    assert backup.calls == [] and budget.calls == 1
