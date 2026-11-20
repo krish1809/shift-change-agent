@@ -62,6 +62,8 @@ agent retries on the Gemini fallback, which takes 3-4 s. A paid tier or a second
    - **with the demo clock set ahead of real time every JWT was rejected** (PyJWT checked `iat` against the wall clock). Found by walking through the demo, not by the suite, because test clocks are in the past.
 9. **Free-tier quota.** A later live rerun hit Groq's daily token limit (200,000 tokens/day; one call ≈ 1,250 tokens ≈ 160 messages/day). The affected turns ended in the plain "nothing was changed, try again" reply, which is the designed behaviour. The committed live results are from the earlier full run; tool descriptions were refined after it (to fix two tool-choice slips seen live) and a fresh live run is pending the quota reset.
 
+10. **Fallback-path live run** (Groq out of daily quota, so after one 429 every call went to Gemini `gemini-3.1-flash-lite`): **32/36**, p95 4.07 s, 1 call per message. 2 failures were Gemini timeouts (11 of ~51 calls exceeded the 4 s per-call limit; the turns ended in the plain "nothing was changed" reply), 2 were Gemini listing cab options where a clarifying question is expected (safe, nothing changed, but a different behaviour; expectations were not loosened). Conclusion: Groq stays primary (0.75 s typical, steady); Gemini is a working but slower fallback. Added a 60 s cooldown so a rate-limited provider is skipped instead of costing every message an extra call.
+
 ## 5. Known failures and limitations
 
 - Live pass rate depends on provider health: on free tiers a run can hit 429/503 and a case then fails with a plain "nothing was changed, try again" reply (this happened once for INP-03 during development and passed on rerun). The final committed live run is 36/36.
