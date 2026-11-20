@@ -75,12 +75,15 @@ def is_grounded(span: str, user_texts: list[str], *, is_time: bool = False) -> b
     return is_time and _same_explicit_time(span, recent)
 
 
-def select_call(tool_calls: list[dict[str, Any]], mode: str) -> tuple[dict[str, Any] | None, int]:
-    """Keep the first call; extra MUTATING calls in the same turn are dropped (returns how many)."""
+def select_call(tool_calls: list[dict[str, Any]]) -> tuple[dict[str, Any] | None, int]:
+    """One tool per turn: keep the first call and drop the rest (returns how many were dropped).
+
+    This is stricter than "at most one mutating call": a turn produces exactly one typed result, so the
+    reply can never mix the outcomes of two actions.
+    """
     if not tool_calls:
         return None, 0
-    first = tool_calls[0]
-    return first, len(tool_calls) - 1
+    return tool_calls[0], len(tool_calls) - 1
 
 
 def validate_call(tool_call: dict[str, Any], *, mode: str, user_texts: list[str]) -> ValidCall | GateError:

@@ -15,7 +15,7 @@ from pydantic import BaseModel
 from app.db.repositories import audit
 from app.db.repositories import requests as requests_repo
 from app.logging import get_correlation_id
-from app.tools.common import upcoming_entries
+from app.tools.common import day_label, time_label, upcoming_entries
 from app.tools.context import ToolContext
 from app.tools.handlers import HANDLERS
 from app.tools.registry import REGISTRY
@@ -92,8 +92,6 @@ async def _booking_line(ctx: ToolContext) -> str:
             entries = await upcoming_entries(ctx, conn)
         if entries:
             e = entries[0]
-            from app.tools.common import day_label, time_label
-
             return f"your {time_label(ctx, e.trip)} {e.trip_type} {day_label(ctx, e)} is still booked"  # type: ignore[arg-type]
     except Exception:
         pass
