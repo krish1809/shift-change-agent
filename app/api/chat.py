@@ -54,6 +54,8 @@ async def chat(body: ChatRequest, request: Request, auth: AuthContext = Depends(
             "correlation_id": get_correlation_id(),
             "llm_calls": outcome.llm_calls,
             "latency_ms": outcome.latency_ms,
+            "outcome": outcome.last_outcome,  # machine-readable result status (used by the eval runner)
+            "tools": outcome.tools_called or [],
         },
     }
     return JSONResponse(payload, status_code=outcome.http_status)

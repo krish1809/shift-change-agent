@@ -5,8 +5,10 @@ from __future__ import annotations
 import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI, Request
+from fastapi.responses import FileResponse
 from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 
 from app.agent.graph import build_graph
@@ -80,6 +82,11 @@ def build_app(settings: Settings | None = None, *, clock: Clock | None = None, l
         return response
 
     install_error_handlers(app)
+
+    @app.get("/", include_in_schema=False)
+    async def index() -> FileResponse:
+        return FileResponse(Path(__file__).parent / "static" / "index.html")
+
     for router in (health.router, dev.router, me.router, manager.router, chat.router):
         app.include_router(router)
     return app
