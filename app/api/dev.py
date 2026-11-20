@@ -2,6 +2,7 @@
 
 Every route here returns 404 unless ENV=dev.
 """
+
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, Request

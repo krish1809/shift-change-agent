@@ -1,4 +1,5 @@
 """One response envelope for everything, including errors. No exception text ever reaches a client."""
+
 from __future__ import annotations
 
 import logging
@@ -47,8 +48,7 @@ FRIENDLY = {
 
 def internal_error_reply(correlation_id: str) -> str:
     return (
-        "Something went wrong on our side and nothing was changed. Please try again. "
-        f"(Ref: {correlation_id})"
+        f"Something went wrong on our side and nothing was changed. Please try again. (Ref: {correlation_id})"
     )
 
 
@@ -73,7 +73,9 @@ def _validation_reply(exc: RequestValidationError) -> str:
     for err in exc.errors():
         loc = [str(p) for p in err.get("loc", ())]
         if err.get("type") == "extra_forbidden":
-            return "This request contains fields that aren't allowed. Identity always comes from your sign-in."
+            return (
+                "This request contains fields that aren't allowed. Identity always comes from your sign-in."
+            )
         if "message" in loc:
             kind = err.get("type", "")
             if kind in ("string_too_long",):

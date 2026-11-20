@@ -1,4 +1,5 @@
 """Shift-request queries. Every lookup is scoped by company (and by employee for employee callers)."""
+
 from __future__ import annotations
 
 from datetime import datetime

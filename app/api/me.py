@@ -1,4 +1,5 @@
 """Employee self-service reads. Identity comes from the token; there is no id in the path or body."""
+
 from __future__ import annotations
 
 from datetime import date

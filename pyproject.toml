@@ -32,8 +32,9 @@ dev = [
 ]
 
 [tool.ruff]
-line-length = 110
+line-length = 120
 target-version = "py312"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "ASYNC"]
+ignore = ["B008"]  # FastAPI dependency-injection idiom

@@ -1,4 +1,5 @@
 """Structured JSON logging. Every line carries the correlation id of the request that produced it."""
+
 from __future__ import annotations
 
 import json

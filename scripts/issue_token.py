@@ -1,7 +1,8 @@
 """Mint a dev JWT for a seeded employee or manager.
 
-    python -m scripts.issue_token --company acme --employee A001
+python -m scripts.issue_token --company acme --employee A001
 """
+
 from __future__ import annotations
 
 import argparse

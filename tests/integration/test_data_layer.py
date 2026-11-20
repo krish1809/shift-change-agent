@@ -1,4 +1,5 @@
 """Phase 1: seed correctness, tenant-scoped repositories and DB-level isolation."""
+
 from __future__ import annotations
 
 import importlib

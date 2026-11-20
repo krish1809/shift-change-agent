@@ -3,6 +3,7 @@
 Everything time-dependent (cut-offs, expiry, created_at) asks a `Clock`, so tests can freeze time
 and the demo can move it ("pretend it is 5:30 PM") without touching business code.
 """
+
 from __future__ import annotations
 
 from datetime import datetime, timedelta

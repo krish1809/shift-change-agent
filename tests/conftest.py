@@ -1,4 +1,5 @@
 """Shared fixtures. Tests use the real Postgres (`shift_test`), a frozen clock and fake LLMs only."""
+
 from __future__ import annotations
 
 import os

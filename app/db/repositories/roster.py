@@ -1,4 +1,5 @@
 """Roster queries. Always scoped to (company_id, employee_id): an employee only ever sees their own rows."""
+
 from __future__ import annotations
 
 from datetime import date

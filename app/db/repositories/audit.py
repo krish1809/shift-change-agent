@@ -1,4 +1,5 @@
 """Append-only audit trail: who asked for what, and who decided."""
+
 from __future__ import annotations
 
 from datetime import datetime
@@ -27,8 +28,17 @@ async def add_audit(
         """INSERT INTO audit_log (at, company_id, actor_type, actor_id, action, request_id, thread_id,
                                   correlation_id, payload)
            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)""",
-        (at, company_id, actor_type, actor_id, action, request_id, thread_id, correlation_id,
-         Jsonb(payload or {})),
+        (
+            at,
+            company_id,
+            actor_type,
+            actor_id,
+            action,
+            request_id,
+            thread_id,
+            correlation_id,
+            Jsonb(payload or {}),
+        ),
     )
 
 

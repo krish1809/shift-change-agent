@@ -1,4 +1,5 @@
 """Test helpers: run an app in-process, mint tokens, and refuse any leaked traceback."""
+
 from __future__ import annotations
 
 import re

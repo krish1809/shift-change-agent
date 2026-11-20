@@ -1,4 +1,5 @@
 """All runtime configuration, read from environment variables (see .env.example)."""
+
 from __future__ import annotations
 
 import logging

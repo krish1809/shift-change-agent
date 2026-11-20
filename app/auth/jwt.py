@@ -1,4 +1,5 @@
 """JWT issue/verify. The token is the ONLY source of company and employee identity."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass

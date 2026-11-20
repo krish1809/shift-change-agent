@@ -1,4 +1,5 @@
 """FastAPI application factory. `build_app()` is also what tests use to simulate a restart."""
+
 from __future__ import annotations
 
 import logging

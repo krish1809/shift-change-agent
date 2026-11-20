@@ -1,4 +1,5 @@
 """Typed domain objects. Repositories return these; rules and templates consume them."""
+
 from __future__ import annotations
 
 from datetime import date, datetime, time

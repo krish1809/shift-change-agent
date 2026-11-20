@@ -1,4 +1,5 @@
 """FastAPI dependencies that turn a bearer token into a verified AuthContext."""
+
 from __future__ import annotations
 
 import logging

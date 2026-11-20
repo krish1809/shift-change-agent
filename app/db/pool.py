@@ -1,4 +1,5 @@
 """Async Postgres pool shared by domain repositories and the LangGraph checkpointer."""
+
 from __future__ import annotations
 
 from pathlib import Path

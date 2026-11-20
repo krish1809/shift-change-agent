@@ -1,4 +1,5 @@
 """Trip queries. A trip id that belongs to another company is simply not found."""
+
 from __future__ import annotations
 
 from datetime import date

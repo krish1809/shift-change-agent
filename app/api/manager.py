@@ -1,4 +1,5 @@
 """Transport-manager endpoints. A manager only ever sees requests of their own company."""
+
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, Query, Request

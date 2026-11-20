@@ -1,4 +1,5 @@
 """Company and policy lookups. Policy is always loaded by the caller's own company_id."""
+
 from __future__ import annotations
 
 from psycopg import AsyncConnection

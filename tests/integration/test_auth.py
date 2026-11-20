@@ -1,4 +1,5 @@
 """Phase 2: identity comes only from a valid token."""
+
 from __future__ import annotations
 
 from datetime import timedelta
@@ -42,8 +43,15 @@ async def test_expired_token_401(client, clock) -> None:
 
 async def test_bad_signature_401(client, clock) -> None:
     forged = jwt.encode(
-        {"iss": ISSUER, "aud": AUDIENCE, "sub": "A001", "company_id": "acme", "role": "employee",
-         "iat": int(clock.now().timestamp()), "exp": int(clock.now().timestamp()) + 600},
+        {
+            "iss": ISSUER,
+            "aud": AUDIENCE,
+            "sub": "A001",
+            "company_id": "acme",
+            "role": "employee",
+            "iat": int(clock.now().timestamp()),
+            "exp": int(clock.now().timestamp()) + 600,
+        },
         "some-other-secret-that-is-long-enough-000000",
         algorithm="HS256",
     )
@@ -61,8 +69,15 @@ async def test_tampered_payload_401(client, clock) -> None:
 
 async def test_alg_none_401(client, clock) -> None:
     unsigned = jwt.encode(
-        {"iss": ISSUER, "aud": AUDIENCE, "sub": "A001", "company_id": "acme", "role": "employee",
-         "iat": int(clock.now().timestamp()), "exp": int(clock.now().timestamp()) + 600},
+        {
+            "iss": ISSUER,
+            "aud": AUDIENCE,
+            "sub": "A001",
+            "company_id": "acme",
+            "role": "employee",
+            "iat": int(clock.now().timestamp()),
+            "exp": int(clock.now().timestamp()) + 600,
+        },
         None,
         algorithm="none",
     )
@@ -71,8 +86,14 @@ async def test_alg_none_401(client, clock) -> None:
 
 
 async def test_missing_company_claim_401(client, clock) -> None:
-    claims = {"iss": ISSUER, "aud": AUDIENCE, "sub": "A001", "role": "employee",
-              "iat": int(clock.now().timestamp()), "exp": int(clock.now().timestamp()) + 600}
+    claims = {
+        "iss": ISSUER,
+        "aud": AUDIENCE,
+        "sub": "A001",
+        "role": "employee",
+        "iat": int(clock.now().timestamp()),
+        "exp": int(clock.now().timestamp()) + 600,
+    }
     r = await client.get(
         "/me/roster", headers={"Authorization": f"Bearer {jwt.encode(claims, SECRET, algorithm='HS256')}"}
     )

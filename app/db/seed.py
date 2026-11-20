@@ -3,6 +3,7 @@
 Day offsets in the file ("day": 0 / 1) are resolved against a base date (D0), so the same data
 works for "today" in the demo and for the frozen test date 2026-03-02.
 """
+
 from __future__ import annotations
 
 import json
@@ -115,15 +116,31 @@ async def _insert_all(conn: AsyncConnection, data: dict[str, Any], base_date: da
             """INSERT INTO trips (company_id, id, route_id, trip_type, service_date, scheduled_at,
                  vehicle_seats, effective_capacity, seats_taken, cab_label)
                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
-            (cid, trip["id"], trip["route_id"], trip["trip_type"], service_date, scheduled_at,
-             trip["vehicle_seats"], capacity, taken, trip["cab_label"]),
+            (
+                cid,
+                trip["id"],
+                trip["route_id"],
+                trip["trip_type"],
+                service_date,
+                scheduled_at,
+                trip["vehicle_seats"],
+                capacity,
+                taken,
+                trip["cab_label"],
+            ),
         )
 
     for entry in data["roster_entries"]:
         await conn.execute(
             """INSERT INTO roster_entries (company_id, id, employee_id, service_date, trip_type, trip_id, status)
                VALUES (%s, %s, %s, %s, %s, %s, %s)""",
-            (entry["company_id"], entry["id"], entry["employee_id"],
-             base_date + timedelta(days=entry["day"]), entry["trip_type"], entry.get("trip_id"),
-             "scheduled" if entry.get("trip_id") else "cancelled"),
+            (
+                entry["company_id"],
+                entry["id"],
+                entry["employee_id"],
+                base_date + timedelta(days=entry["day"]),
+                entry["trip_type"],
+                entry.get("trip_id"),
+                "scheduled" if entry.get("trip_id") else "cancelled",
+            ),
         )
