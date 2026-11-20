@@ -303,7 +303,7 @@ async def test_asking_again_after_a_rejection_creates_a_new_request(clock) -> No
         assert again["status"] == "pending_approval" and again["request"]["id"] != req_id
         async with app.state.pool.connection() as conn:
             rows = await (await conn.execute("SELECT status FROM shift_requests ORDER BY created_at, id")).fetchall()
-        assert [r["status"] for r in rows] == ["APPROVAL_REJECTED", "PENDING_APPROVAL"]
+        assert sorted(r["status"] for r in rows) == ["APPROVAL_REJECTED", "PENDING_APPROVAL"]  # same frozen instant
 
 
 async def test_withdraw_in_a_paused_chat_targets_that_chats_request(clock) -> None:
@@ -354,3 +354,24 @@ async def test_chat_leaves_pending_mode_when_its_request_was_finished_elsewhere(
         r = (await chat(client, "acme", "A001", "move my pickup tomorrow to 10 am", clock.now(), session)).json()
         assert "waiting for your transport manager" not in r["reply"]
         assert "10:00 AM" in r["reply"] and r["request"]["status"] == "APPLIED"
+
+
+async def test_manager_queue_is_readable_and_audit_trail_shows_who_decided(clock) -> None:
+    session, req_id = await escalate(clock)
+    async with running(new_app(clock)) as client:
+        queue = (await client.get("/manager/requests", headers=manager(clock))).json()["requests"]
+        assert len(queue) == 1
+        item = queue[0]
+        assert item["employee_name"] == "Priya Sharma" and item["summary"] == "drop today: 7:00 PM → 8:30 PM"
+        assert item["reasons"] == ["after the cut-off"] and "thread_id" not in item and "idempotency_key" not in item
+        await client.post(
+            f"/manager/requests/{req_id}/decision", json={"decision": "approve", "note": "ok"}, headers=manager(clock)
+        )
+        trail = (await client.get(f"/manager/requests/{req_id}/audit", headers=manager(clock))).json()
+        assert [e["action"] for e in trail["events"]] == ["ESCALATED", "DECISION_RECORDED", "RESUMED", "CHANGE_APPLIED"]
+        assert trail["events"][0]["actor"] == "employee:A001" and trail["events"][1]["actor"] == "manager:AM01"
+        everything = (await client.get("/manager/requests?status=", headers=manager(clock))).json()["requests"]
+        assert [r["status"] for r in everything] == ["APPROVED_APPLIED"]
+        # another company's manager can't read the trail
+        r = await client.get(f"/manager/requests/{req_id}/audit", headers=manager(clock, "globex", "GM01"))
+        assert r.status_code == 404
