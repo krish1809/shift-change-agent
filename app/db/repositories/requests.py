@@ -76,3 +76,41 @@ async def count_applied_changes(
         )
     ).fetchone()
     return int(row["n"]) if row else 0
+
+
+async def record_decision(
+    conn: AsyncConnection,
+    company_id: str,
+    request_id: str,
+    *,
+    decision: str,
+    decided_by: str,
+    note: str | None,
+    at: datetime,
+) -> ShiftRequest | None:
+    """The decision outbox: written FIRST, exactly once. None = not pending / already decided / not visible."""
+    row = await (
+        await conn.execute(
+            """UPDATE shift_requests
+                  SET decision = %s, decided_by = %s, decision_note = %s, decided_at = %s, updated_at = %s
+                WHERE company_id = %s AND id = %s AND status = 'PENDING_APPROVAL' AND decision IS NULL
+            RETURNING *""",
+            (decision, decided_by, note, at, at, company_id, request_id),
+        )
+    ).fetchone()
+    return ShiftRequest(**row) if row else None
+
+
+async def finalize_status(
+    conn: AsyncConnection, company_id: str, request_id: str, *, status: str, at: datetime
+) -> bool:
+    """PENDING_APPROVAL -> final status, once. Re-running after a crash is a harmless no-op (False)."""
+    row = await (
+        await conn.execute(
+            """UPDATE shift_requests SET status = %s, updated_at = %s, resumed_at = %s
+                WHERE company_id = %s AND id = %s AND status = 'PENDING_APPROVAL'
+            RETURNING id""",
+            (status, at, at, company_id, request_id),
+        )
+    ).fetchone()
+    return row is not None
