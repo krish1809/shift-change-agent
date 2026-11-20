@@ -1,0 +1,11 @@
+{
+  "messages": 76,
+  "provider": "groq",
+  "p50_ms": 1902,
+  "p95_ms": 4093,
+  "max_ms": 4129,
+  "mean_llm_calls": 1,
+  "max_llm_calls": 1,
+  "p95_under_5s": true,
+  "max_calls_ok": true
+}
