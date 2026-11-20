@@ -25,7 +25,7 @@ For the full natural-language experience, copy `.env.example` to `.env` and set 
 |---|---|
 | Tests (fake LLM, real Postgres) | `docker compose run --rm tests` |
 | Evaluation set (offline, fake LLM) | `docker compose run --rm eval` → `eval/results.fake.jsonl` |
-| Evaluation set with a real model | `make eval-live` → `eval/results.live.jsonl` |
+| Evaluation set with a real model | `make eval-live` → `eval/results.live.jsonl` (36/36 with Groq `gpt-oss-20b`) |
 | Latency benchmark (real model) | `make bench` → `eval/latency.json` |
 | Restart proof against docker | `./scripts/e2e_restart.sh` |
 | Mint a token | `make token COMPANY=acme EMPLOYEE=A001` |
@@ -53,7 +53,7 @@ A counter in code (`TurnBudget`, `app/llm/base.py`) wraps the model for each tur
 the roster snapshot is already in the prompt (no read-tool round trip); after a mutating tool the model is
 **not** called again (a template states the outcome); clarifying questions are templates too. The only
 extra call is one *repair* attempt when the model emits an invalid tool call. Measured over the eval set:
-max 2 calls in any turn, mean 1.01.
+max 2 calls in any turn, mean 1.01 (scripted); with a real model: always 1.
 
 ## How isolation is enforced (and the test that proves each layer)
 

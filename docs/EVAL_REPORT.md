@@ -4,15 +4,15 @@
 
 | Layer | Result |
 |---|---|
-| pytest suite (fake LLM, real Postgres, frozen clock) | **299 passed** |
+| pytest suite (fake LLM, real Postgres, frozen clock) | **308 passed** |
 | Evaluation set, fake mode (`eval/results.fake.jsonl`) | **60 / 60 passed** (9 categories) |
 | LLM calls per message (all eval turns) | mean **1.01**, max **2** (cap 4) |
 | In-process reply latency, fake model (84 turns) | p50 58 ms, p95 100 ms, max 1,152 ms (max = deliberate tool timeout/retry cases) |
-| Evaluation set, live mode | **not run yet**: needs a Groq/Gemini key (`make eval-live`) |
-| p95 latency with a real LLM | **not measured yet** (`make bench` → `eval/latency.json`) |
+| Evaluation set, live mode (Groq `openai/gpt-oss-20b`, Gemini `gemini-3.1-flash-lite` fallback) | **36 / 36 passed** (the 36 cases that make sense with a real model; the other 24 need scripted bad output, restarts or fault control) |
+| Reply latency with the real LLM (76 messages, `eval/latency.json`) | p50 **1.9 s**, p95 **4.1 s**, max 4.1 s, mean **1.0** LLM calls per message |
 
-The p95 < 5 s requirement is therefore only *designed for* and *measured against the fake model* so far;
-the live number must be filled in after running the bench with a real key.
+p95 < 5 s holds with a real model, but with a thin margin: the tail is the free tier. When Groq answers 429 the
+agent retries on the Gemini fallback, which takes 3-4 s. A paid tier or a second fast provider would remove that tail.
 
 ## 2. Method
 
@@ -45,9 +45,20 @@ the live number must be filled in after running the bench with a real key.
 6. **Seed-data default would wipe pending approvals on restart** (`SEED_ON_START=true`). Changed to seed only an empty database.
 7. A second session double-submitting would have left that thread paused forever waiting for another thread's request; a duplicate no longer pauses its thread.
 
+7. **Live run #1 passed only 18/36.** Found by running the real model, which the scripted tests could not:
+   - *Asked "which day?" for "8 pm drop"* (today and tomorrow both have a drop). A desk executive assumes the next one. Now: known trip type + no date → the **next** trip of that type, and the reply names the day. Unknown trip type still asks (CLR-05).
+   - *Grounding was too literal*: the model wrote `9:00 pm` where the user said `9 pm`, so it was treated as invented. Now spelling variants and the same explicit clock time count as grounded, but a bare `8` can never become `20:00` behind the user's back (unit-tested).
+   - *`suggested_time` confused the model* into putting explicit times there; it is now internal-only (the gate creates it when a time is invented).
+   - *The model sometimes answered in prose* instead of calling a tool; the system prompt now forbids it and a blocked/ungrounded prose reply gets a second, deterministic chance via the rule-based interpreter.
+   - *Tool choice*: "what time is my pickup tomorrow?" went to `check_cab_options`; tool descriptions were sharpened (now 10/10 tool-selection cases).
+   - *Provider issues*: the Gemini fallback model I first chose (`gemini-2.5-flash-lite`) is retired for new accounts (404) and `gemini-3.5-flash-lite` was too slow (>3 s); `gemini-3.1-flash-lite` works. The default per-call timeout is now 4 s. Free-tier Groq returns 429 under load, which the chain handles (fallback provider, then rule-based, then a plain message).
+   - Some of my own cases said "8 pm" without saying drop/pickup; asking was correct, so the wording was fixed (and 3 cases accept a safe alternative in live mode, e.g. a polite prose refusal, recorded in each case's notes).
+
 ## 5. Known failures and limitations
 
-- Live-model behaviour (tool choice, span extraction, Hinglish) is **unmeasured** until a key is supplied; expected weak spots are free-tier models emitting `20:30` instead of the user's words (handled by span grounding, but it turns into an extra question) and occasional malformed tool calls (one repair attempt, then a plain fallback).
+- Live pass rate depends on provider health: on free tiers a run can hit 429/503 and a case then fails with a plain "nothing was changed, try again" reply (this happened once for INP-03 during development and passed on rerun). The final committed live run is 36/36.
+- Free-tier models still occasionally emit a resolved time (`19:30`) instead of the user's words (`30 mins later`); the gate turns that into a confirmation question instead of acting (CLR-07 accepts either outcome in live mode).
+- Occasional malformed tool calls get one repair attempt, then a plain fallback.
 - Rule-based degraded mode only understands canonical phrasings by design.
 - A turn that exceeds the 8 s deadline answers honestly that it could not finish and asks the employee to check their schedule, because a write may have committed.
 - No real push notifications; the UI polls. Single timezone per company. No seat holds during approval.
@@ -61,7 +72,7 @@ the live number must be filled in after running the bench with a real key.
 ## 7. Reproduce
 
 ```bash
-docker compose run --rm tests        # 299 tests
+docker compose run --rm tests        # 308 tests
 docker compose run --rm eval         # writes eval/results.fake.jsonl (60/60)
 make eval-live                       # needs GROQ_API_KEY + GROQ_MODEL in .env
 make bench                           # live p50/p95 -> eval/latency.json
