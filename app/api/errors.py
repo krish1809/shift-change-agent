@@ -36,6 +36,7 @@ class AppError(Exception):
 
 
 FRIENDLY = {
+    400: "I couldn't read that request. Please send a valid message and try again.",
     401: "Please sign in again: your session token is missing, invalid or expired.",
     403: "You don't have access to this.",
     404: "I couldn't find that.",

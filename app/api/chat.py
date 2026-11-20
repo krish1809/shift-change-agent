@@ -29,10 +29,12 @@ class ChatRequest(BaseModel):
 
     @field_validator("message")
     @classmethod
-    def _not_blank(cls, value: str) -> str:
-        if not value.strip():
+    def _clean(cls, value: str) -> str:
+        # NUL and other control characters can't be stored in the JSONB checkpoint and are never meaningful.
+        cleaned = "".join(ch for ch in value if ch in "\n\t" or ch.isprintable()).strip()
+        if not cleaned:
             raise ValueError("blank message")
-        return value.strip()
+        return cleaned
 
 
 @router.post("")
