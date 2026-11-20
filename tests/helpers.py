@@ -57,3 +57,17 @@ def token(company_id: str, employee_id: str, role: str, now: datetime, **kw: Any
 
 def bearer(company_id: str, employee_id: str, now: datetime, role: str = "employee") -> dict[str, str]:
     return {"Authorization": f"Bearer {token(company_id, employee_id, role, now)}"}
+
+
+async def chat(
+    client: httpx.AsyncClient, company: str, employee: str, text: str, now: datetime, session: str | None = None
+):
+    body: dict[str, Any] = {"message": text}
+    if session:
+        body["session_id"] = session
+    return await client.post("/chat", json=body, headers=bearer(company, employee, now))
+
+
+def tool(name: str, **args: Any) -> dict[str, Any]:
+    """A scripted model turn: call `name(**args)`."""
+    return {"tool": name, "args": args}
