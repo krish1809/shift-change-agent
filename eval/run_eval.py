@@ -318,13 +318,21 @@ async def db_snapshot(h: Harness, wanted: dict[str, Any]) -> dict[str, Any]:
 
 
 def judge(expected: dict[str, Any], actual: dict[str, Any], *, live: bool) -> tuple[bool, list[str]]:
+    if live and "live" in expected:  # per-mode overrides, e.g. wording that depends on a scripted model
+        expected = {**expected, **expected["live"]}
     checks: list[str] = []
     failures: list[str] = []
 
     def check(name: str, ok: bool, detail: str = "") -> None:
         (checks if ok else failures).append(name if ok else f"FAILED {name} {detail}".strip())
 
-    if "outcomes" in expected:
+    allowed = expected.get("outcomes_allowed_live") if live else None
+    if allowed is not None:
+        ok = len(actual["outcomes"]) == len(allowed) and all(
+            o in a for o, a in zip(actual["outcomes"], allowed, strict=False)
+        )
+        check("outcomes", ok, f"expected one of {allowed} got {actual['outcomes']}")
+    elif "outcomes" in expected:
         check(
             "outcomes",
             actual["outcomes"] == expected["outcomes"],
@@ -456,7 +464,8 @@ async def main_async(args: argparse.Namespace) -> int:
     db_url = os.environ.get("EVAL_DATABASE_URL") or base.database_url
     settings = Settings(
         _env_file=None, env="test", database_url=db_url, seed_on_start="never", jwt_secret=SECRET,
-        llm_provider="fake", llm_fallback_provider="", log_level="ERROR", sweeper_interval_s=0,
+        llm_provider="fake", llm_fallback_provider="", sweeper_interval_s=0,
+        log_level=os.environ.get("EVAL_LOG_LEVEL", "ERROR"),
         tool_timeout_ms=500 if args.mode == "fake" else base.tool_timeout_ms,
         groq_api_key=base.groq_api_key, groq_model=base.groq_model,
         gemini_api_key=base.gemini_api_key, gemini_model=base.gemini_model,
