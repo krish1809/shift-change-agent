@@ -31,6 +31,7 @@ class ToolContext:
     pending_request_id: str | None = None
     recent_user_texts: list[str] = field(default_factory=list)
     booking_line: str | None = None
+    ungrounded: set[str] = field(default_factory=set)  # spans the gate could not find in the user's words
     tool_timeout_s: float = 1.0
     # Written by mutating handlers before they write, so a timed-out write can be reconciled.
     scratch: dict[str, Any] = field(default_factory=dict)
