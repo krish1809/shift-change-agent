@@ -1,0 +1,27 @@
+# secrets
+.env
+.env.*
+!.env.example
+
+# python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+
+# editor / os
+.vscode/
+.idea/
+.DS_Store
+
+# build-kit material that is not part of the submission
+CLAUDE.md
+CLAUDE_CODE_PROMPTS.md
+ARCHITECTURE.md
+prompts/
+docs/VIVA_PREP.md
+*.docx
+.claude/
+KIT_README.md
