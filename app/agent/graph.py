@@ -139,6 +139,14 @@ async def interpret(state: ConversationState, runtime: Rt) -> dict[str, Any]:
         if fallback.tool_calls or fallback.text:
             return {"llm_response": {"text": fallback.text, "tool_calls": fallback.tool_calls}, "degraded": True}
         return {"fail_reason": "llm_down"}
+    if not response.tool_calls:
+        allowed, _ = check_prose(response.text or "", outcome_this_turn=False)
+        if not allowed:
+            # The model answered a request in prose (or claimed an outcome). Our regexes can still read the
+            # canonical phrasings, so give the request a second, deterministic chance before giving up.
+            rescue = rule_based_interpret(state["user_text"])
+            if rescue.tool_calls:
+                return {"llm_response": {"text": None, "tool_calls": rescue.tool_calls}, "degraded": True}
     return {"llm_response": {"text": response.text, "tool_calls": response.tool_calls}}
 
 

@@ -59,8 +59,14 @@ class GetMyPolicyArgs(ToolArgs):
 
 
 DESCRIPTIONS = {
-    "get_my_roster": "Show the user's own pickups/drops for a date other than today/tomorrow.",
-    "check_cab_options": "List cabs with free seats the user could switch to (does not change anything).",
+    "get_my_roster": (
+        "Answer questions about the user's OWN booked trips and times, e.g. 'what time is my pickup tomorrow', "
+        "'my schedule'. Use this instead of answering from memory."
+    ),
+    "check_cab_options": (
+        "List OTHER cabs with free seats the user could switch to. Only when they ask what alternatives/slots exist; "
+        "never for questions about their own booking."
+    ),
     "request_shift_change": (
         "Change (reschedule) or cancel one of the user's pickups/drops. Rules are checked by the system."
     ),
@@ -79,4 +85,7 @@ def openai_tool_schema(name: str, model: type[BaseModel]) -> dict[str, Any]:
     for prop in schema.get("properties", {}).values():
         prop.pop("title", None)
     schema["additionalProperties"] = False
+    # Internal only: the gate creates `suggested_time` when the model invents a time. Showing it to the model
+    # made it put the user's explicit time there instead of in time_text.
+    schema.get("properties", {}).pop("suggested_time", None)
     return {"type": "function", "function": {"name": name, "description": DESCRIPTIONS[name], "parameters": schema}}
