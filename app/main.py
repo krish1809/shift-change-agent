@@ -9,13 +9,18 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 
-from app.api import dev, health, manager, me
+from app.agent.graph import build_graph
+from app.api import chat, dev, health, manager, me
 from app.api.errors import install_error_handlers
 from app.db.pool import apply_schema, open_pool
 from app.db.seed import reseed, resolve_base_date, seed_if_empty
 from app.domain.clock import Clock, OverrideClock, parse_aware
+from app.llm.base import ChatLLM
+from app.llm.openai_compat import build_llm
+from app.llm.rule_based import RuleBasedLLM
 from app.logging import configure_logging, correlation_id_var, new_correlation_id
 from app.settings import Settings, get_settings
+from app.tools.faults import FaultInjector
 
 log = logging.getLogger(__name__)
 
@@ -27,7 +32,7 @@ def _default_clock(settings: Settings) -> OverrideClock:
     return clock
 
 
-def build_app(settings: Settings | None = None, *, clock: Clock | None = None) -> FastAPI:
+def build_app(settings: Settings | None = None, *, clock: Clock | None = None, llm: ChatLLM | None = None) -> FastAPI:
     settings = settings or get_settings()
     configure_logging(settings.log_level)
     clock = clock or _default_clock(settings)
@@ -37,9 +42,11 @@ def build_app(settings: Settings | None = None, *, clock: Clock | None = None) -
         pool = await open_pool(settings.database_url)
         try:
             await apply_schema(pool)
-            await AsyncPostgresSaver(pool).setup()
+            saver = AsyncPostgresSaver(pool)
+            await saver.setup()
             await _seed(pool, settings, clock)
             app.state.pool = pool
+            app.state.graph = build_graph(saver)
             log.info("startup complete", extra={"fields": {"env": settings.env}})
             yield
         finally:
@@ -51,6 +58,9 @@ def build_app(settings: Settings | None = None, *, clock: Clock | None = None) -
     app.state.settings = settings
     app.state.clock = clock
     app.state.pool = None
+    app.state.graph = None
+    app.state.faults = FaultInjector(settings.faults)
+    app.state.llm = llm or build_llm(settings, RuleBasedLLM())
 
     @app.middleware("http")
     async def correlation_middleware(request: Request, call_next):  # type: ignore[no-untyped-def]
@@ -64,7 +74,7 @@ def build_app(settings: Settings | None = None, *, clock: Clock | None = None) -
         return response
 
     install_error_handlers(app)
-    for router in (health.router, dev.router, me.router, manager.router):
+    for router in (health.router, dev.router, me.router, manager.router, chat.router):
         app.include_router(router)
     return app
 
