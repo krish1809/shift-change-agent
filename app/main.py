@@ -10,6 +10,7 @@ from fastapi import FastAPI, Request
 from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 
 from app.agent.graph import build_graph
+from app.agent.sweeper import start_sweeper, stop_sweeper
 from app.api import chat, dev, health, manager, me
 from app.api.errors import install_error_handlers
 from app.db.pool import apply_schema, open_pool
@@ -40,6 +41,7 @@ def build_app(settings: Settings | None = None, *, clock: Clock | None = None, l
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         pool = await open_pool(settings.database_url)
+        sweeper = None
         try:
             await apply_schema(pool)
             saver = AsyncPostgresSaver(pool)
@@ -47,9 +49,13 @@ def build_app(settings: Settings | None = None, *, clock: Clock | None = None, l
             await _seed(pool, settings, clock)
             app.state.pool = pool
             app.state.graph = build_graph(saver)
+            if settings.sweeper_interval_s > 0:  # 0 disables the background loop (tests call run_once)
+                sweeper = start_sweeper(app)
             log.info("startup complete", extra={"fields": {"env": settings.env}})
             yield
         finally:
+            if sweeper is not None:
+                await stop_sweeper(sweeper)
             app.state.pool = None
             await pool.close()
             log.info("shutdown complete")
