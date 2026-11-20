@@ -225,3 +225,43 @@ async def test_fallback_stops_at_the_cap_and_reports_the_provider_error() -> Non
     with pytest.raises(LLMRateLimited):
         await BudgetedLLM(FallbackLLM([primary, backup]), budget).invoke([], [], timeout_s=3)
     assert backup.calls == [] and budget.calls == 1
+
+
+async def test_rate_limited_primary_is_skipped_during_cooldown() -> None:
+    """After a 429 the next messages go straight to the fallback: no wasted call, no wasted time."""
+    primary = ScriptedLLM([{"raise": "rate_limit"}, {"tool": "get_my_policy", "args": {}}])
+    backup = ScriptedLLM([{"tool": "get_my_policy", "args": {}}] * 2)
+    chain = FallbackLLM([primary, backup], cooldown_s=60)
+
+    first = TurnBudget(4)
+    await BudgetedLLM(chain, first).invoke([], [], timeout_s=3)
+    assert first.calls == 2 and len(primary.calls) == 1  # 429, then the fallback
+
+    second = TurnBudget(4)
+    await BudgetedLLM(chain, second).invoke([], [], timeout_s=3)
+    assert second.calls == 1 and len(primary.calls) == 1 and len(backup.calls) == 2  # primary skipped
+
+
+async def test_primary_is_retried_after_the_cooldown() -> None:
+    primary = ScriptedLLM([{"raise": "rate_limit"}, {"text": "primary is back"}])
+    backup = ScriptedLLM([{"text": "backup"}])
+    chain = FallbackLLM([primary, backup], cooldown_s=0)
+    assert (await chain.invoke([], [], timeout_s=3)).text == "backup"
+    assert (await chain.invoke([], [], timeout_s=3)).text == "primary is back"
+
+
+async def test_when_every_provider_is_cooling_down_they_are_still_tried() -> None:
+    primary = ScriptedLLM([{"raise": "rate_limit"}, {"text": "ok"}])
+    backup = ScriptedLLM([{"raise": "rate_limit"}])
+    chain = FallbackLLM([primary, backup], cooldown_s=60)
+    with pytest.raises(LLMRateLimited):
+        await chain.invoke([], [], timeout_s=3)
+    assert (await chain.invoke([], [], timeout_s=3)).text == "ok"
+
+
+async def test_non_rate_limit_errors_do_not_trigger_cooldown() -> None:
+    primary = ScriptedLLM([{"raise": "timeout"}, {"text": "primary"}])
+    backup = ScriptedLLM([{"text": "backup"}])
+    chain = FallbackLLM([primary, backup], cooldown_s=60)
+    assert (await chain.invoke([], [], timeout_s=3)).text == "backup"
+    assert (await chain.invoke([], [], timeout_s=3)).text == "primary"

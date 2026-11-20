@@ -32,6 +32,7 @@ class Settings(BaseSettings):
     llm_fallback_provider: Literal["groq", "gemini", ""] = "gemini"
 
     llm_timeout_ms: int = 4000
+    llm_rate_limit_cooldown_s: float = 60.0  # skip a provider this long after it answers 429
     max_llm_calls_per_turn: int = 4
     tool_timeout_ms: int = 1000
     turn_deadline_ms: int = 8000

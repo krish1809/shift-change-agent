@@ -88,15 +88,27 @@ class OpenAICompatLLM:
 
 
 class FallbackLLM:
-    """Primary provider, then the fallback if configured and enough of the turn's time is left."""
+    """Primary provider, then the fallback if configured and enough of the turn's time is left.
+
+    A provider that answered 429 (rate limited) is skipped for `cooldown_s`: while Groq's free quota is
+    exhausted, every message goes straight to Gemini instead of first wasting a call and ~0.3 s on a
+    guaranteed 429. After the cooldown the primary is tried again. If every provider is cooling down, they
+    are all tried anyway (better a likely 429 than no attempt at all).
+    """
 
     MIN_TIME_FOR_FALLBACK_S = 1.0
 
-    def __init__(self, providers: list[ChatLLM]) -> None:
+    def __init__(self, providers: list[ChatLLM], *, cooldown_s: float = 60.0) -> None:
         self._providers = providers
+        self._cooldown_s = cooldown_s
+        self._cooling_until: dict[int, float] = {}  # provider index -> loop time when it may be tried again
 
     async def invoke(self, messages: list[Message], tools: list[dict[str, Any]], *, timeout_s: float) -> LLMResponse:
         return await self.invoke_counted(messages, tools, timeout_s=timeout_s, spend=None)
+
+    def _order(self, now: float) -> list[int]:
+        ready = [i for i in range(len(self._providers)) if self._cooling_until.get(i, 0.0) <= now]
+        return ready or list(range(len(self._providers)))
 
     async def invoke_counted(
         self,
@@ -110,7 +122,8 @@ class FallbackLLM:
         loop = asyncio.get_running_loop()
         deadline = loop.time() + timeout_s
         last: LLMError | None = None
-        for provider in self._providers:
+        for index in self._order(loop.time()):
+            provider = self._providers[index]
             remaining = deadline - loop.time()
             if last is not None and remaining < self.MIN_TIME_FOR_FALLBACK_S:
                 break
@@ -122,9 +135,15 @@ class FallbackLLM:
                         raise last from None  # report the provider failure, not the cap
                     raise
             try:
-                return await provider.invoke(messages, tools, timeout_s=max(remaining, 0.1))
+                response = await provider.invoke(messages, tools, timeout_s=max(remaining, 0.1))
+            except LLMRateLimited as exc:
+                self._cooling_until[index] = loop.time() + self._cooldown_s
+                last = exc
             except LLMError as exc:
                 last = exc
+            else:
+                self._cooling_until.pop(index, None)
+                return response
         raise last or LLMUnavailable("no provider configured")
 
 
@@ -137,7 +156,7 @@ def build_llm(settings: Settings, rule_based: ChatLLM) -> ChatLLM:
     fallback = settings.llm_fallback_provider
     if fallback and fallback != primary and settings.provider_configured(fallback):
         chain.append(_make(settings, fallback))
-    return FallbackLLM(chain)
+    return FallbackLLM(chain, cooldown_s=settings.llm_rate_limit_cooldown_s)
 
 
 def _make(settings: Settings, provider: str) -> OpenAICompatLLM:
