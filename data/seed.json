@@ -1,0 +1,122 @@
+{
+  "_comment": "Day offsets: day 0 = D0 (today / frozen test date), day 1 = D1. Times are local to the company timezone. seats_taken is computed by the seeder as filler_riders + roster entries on the trip. Trip ids keep the D0/D1 token so tests and eval cases can reference them stably.",
+  "companies": [
+    {
+      "id": "acme",
+      "name": "Acme Tech",
+      "timezone": "Asia/Kolkata",
+      "desk_phone": "080-4000-1111",
+      "policy": {
+        "cutoff_minutes_pickup": 180,
+        "cutoff_minutes_drop": 120,
+        "cutoff_escalatable": true,
+        "max_seats_per_cab": 4,
+        "change_window_minutes": 180,
+        "window_escalatable": true,
+        "max_changes_per_day": null,
+        "daily_limit_escalatable": false,
+        "approval_timeout_minutes": 30,
+        "alternatives_count": 3,
+        "alternatives_window_minutes": 180
+      }
+    },
+    {
+      "id": "globex",
+      "name": "Globex Finance",
+      "timezone": "Asia/Kolkata",
+      "desk_phone": "080-4000-2222",
+      "policy": {
+        "cutoff_minutes_pickup": 120,
+        "cutoff_minutes_drop": 60,
+        "cutoff_escalatable": false,
+        "max_seats_per_cab": 6,
+        "change_window_minutes": 120,
+        "window_escalatable": true,
+        "max_changes_per_day": 2,
+        "daily_limit_escalatable": true,
+        "approval_timeout_minutes": 45,
+        "alternatives_count": 3,
+        "alternatives_window_minutes": 180
+      }
+    }
+  ],
+  "routes": [
+    {"company_id": "acme",   "id": "R1", "name": "Acme East",        "zones": ["Whitefield", "Marathahalli"]},
+    {"company_id": "acme",   "id": "R2", "name": "Acme South",       "zones": ["Electronic City"]},
+    {"company_id": "globex", "id": "R1", "name": "Globex East",      "zones": ["Whitefield", "Marathahalli"]},
+    {"company_id": "globex", "id": "R2", "name": "Globex Central",   "zones": ["Koramangala"]}
+  ],
+  "employees": [
+    {"company_id": "acme",   "id": "A001", "name": "Priya Sharma",   "zone": "Whitefield",      "role": "employee"},
+    {"company_id": "acme",   "id": "A002", "name": "Rahul Verma",    "zone": "Marathahalli",    "role": "employee"},
+    {"company_id": "acme",   "id": "A003", "name": "Sneha Iyer",     "zone": "Whitefield",      "role": "employee"},
+    {"company_id": "acme",   "id": "A004", "name": "Arjun Nair",     "zone": "Whitefield",      "role": "employee"},
+    {"company_id": "acme",   "id": "A005", "name": "Divya Rao",      "zone": "Electronic City", "role": "employee"},
+    {"company_id": "acme",   "id": "AM01", "name": "Kavita Menon",   "zone": "Whitefield",      "role": "manager"},
+    {"company_id": "globex", "id": "G001", "name": "Meera Pillai",   "zone": "Whitefield",      "role": "employee"},
+    {"company_id": "globex", "id": "G002", "name": "Karan Malhotra", "zone": "Whitefield",      "role": "employee"},
+    {"company_id": "globex", "id": "G003", "name": "Ananya Das",     "zone": "Marathahalli",    "role": "employee"},
+    {"company_id": "globex", "id": "GM01", "name": "Vikram Singh",   "zone": "Whitefield",      "role": "manager"}
+  ],
+  "trips": [
+    {"company_id": "acme", "id": "ACME-R1-DROP-D0-1800", "route_id": "R1", "trip_type": "drop",   "day": 0, "time": "18:00", "vehicle_seats": 6, "filler_riders": 0, "cab_label": "KA-01-AC-1800 (Innova)"},
+    {"company_id": "acme", "id": "ACME-R1-DROP-D0-1900", "route_id": "R1", "trip_type": "drop",   "day": 0, "time": "19:00", "vehicle_seats": 6, "filler_riders": 1, "cab_label": "KA-01-AC-1900 (Innova)"},
+    {"company_id": "acme", "id": "ACME-R1-DROP-D0-2000", "route_id": "R1", "trip_type": "drop",   "day": 0, "time": "20:00", "vehicle_seats": 6, "filler_riders": 4, "cab_label": "KA-01-AC-2000 (Innova)"},
+    {"company_id": "acme", "id": "ACME-R1-DROP-D0-2030", "route_id": "R1", "trip_type": "drop",   "day": 0, "time": "20:30", "vehicle_seats": 6, "filler_riders": 3, "cab_label": "KA-01-AC-2030 (Innova)"},
+    {"company_id": "acme", "id": "ACME-R1-DROP-D0-2100", "route_id": "R1", "trip_type": "drop",   "day": 0, "time": "21:00", "vehicle_seats": 6, "filler_riders": 1, "cab_label": "KA-01-AC-2100 (Innova)"},
+    {"company_id": "acme", "id": "ACME-R1-DROP-D0-2200", "route_id": "R1", "trip_type": "drop",   "day": 0, "time": "22:00", "vehicle_seats": 6, "filler_riders": 0, "cab_label": "KA-01-AC-2200 (Innova)"},
+    {"company_id": "acme", "id": "ACME-R2-DROP-D0-1900", "route_id": "R2", "trip_type": "drop",   "day": 0, "time": "19:00", "vehicle_seats": 6, "filler_riders": 1, "cab_label": "KA-02-AC-1900 (Innova)"},
+    {"company_id": "acme", "id": "ACME-R2-DROP-D0-2100", "route_id": "R2", "trip_type": "drop",   "day": 0, "time": "21:00", "vehicle_seats": 6, "filler_riders": 1, "cab_label": "KA-02-AC-2100 (Innova)"},
+    {"company_id": "acme", "id": "ACME-R1-PICK-D1-0800", "route_id": "R1", "trip_type": "pickup", "day": 1, "time": "08:00", "vehicle_seats": 6, "filler_riders": 2, "cab_label": "KA-01-AC-0800 (Innova)"},
+    {"company_id": "acme", "id": "ACME-R1-PICK-D1-0900", "route_id": "R1", "trip_type": "pickup", "day": 1, "time": "09:00", "vehicle_seats": 6, "filler_riders": 1, "cab_label": "KA-01-AC-0900 (Innova)"},
+    {"company_id": "acme", "id": "ACME-R1-PICK-D1-1000", "route_id": "R1", "trip_type": "pickup", "day": 1, "time": "10:00", "vehicle_seats": 6, "filler_riders": 0, "cab_label": "KA-01-AC-1000 (Innova)"},
+    {"company_id": "acme", "id": "ACME-R2-PICK-D1-0900", "route_id": "R2", "trip_type": "pickup", "day": 1, "time": "09:00", "vehicle_seats": 6, "filler_riders": 1, "cab_label": "KA-02-AC-0900 (Innova)"},
+    {"company_id": "acme", "id": "ACME-R1-DROP-D1-1900", "route_id": "R1", "trip_type": "drop",   "day": 1, "time": "19:00", "vehicle_seats": 6, "filler_riders": 2, "cab_label": "KA-01-AC-1901 (Innova)"},
+    {"company_id": "acme", "id": "ACME-R1-DROP-D1-2000", "route_id": "R1", "trip_type": "drop",   "day": 1, "time": "20:00", "vehicle_seats": 6, "filler_riders": 1, "cab_label": "KA-01-AC-2001 (Innova)"},
+    {"company_id": "acme", "id": "ACME-R1-DROP-D1-2100", "route_id": "R1", "trip_type": "drop",   "day": 1, "time": "21:00", "vehicle_seats": 6, "filler_riders": 2, "cab_label": "KA-01-AC-2101 (Innova)"},
+
+    {"company_id": "globex", "id": "GLX-R1-DROP-D0-1730", "route_id": "R1", "trip_type": "drop",   "day": 0, "time": "17:30", "vehicle_seats": 6, "filler_riders": 1, "cab_label": "KA-03-GX-1730 (Tempo)"},
+    {"company_id": "globex", "id": "GLX-R1-DROP-D0-1830", "route_id": "R1", "trip_type": "drop",   "day": 0, "time": "18:30", "vehicle_seats": 6, "filler_riders": 6, "cab_label": "KA-03-GX-1830 (Tempo)"},
+    {"company_id": "globex", "id": "GLX-R1-DROP-D0-1930", "route_id": "R1", "trip_type": "drop",   "day": 0, "time": "19:30", "vehicle_seats": 6, "filler_riders": 3, "cab_label": "KA-03-GX-1930 (Tempo)"},
+    {"company_id": "globex", "id": "GLX-R1-DROP-D0-2000", "route_id": "R1", "trip_type": "drop",   "day": 0, "time": "20:00", "vehicle_seats": 6, "filler_riders": 5, "cab_label": "KA-03-GX-2000 (Tempo)"},
+    {"company_id": "globex", "id": "GLX-R1-DROP-D0-2100", "route_id": "R1", "trip_type": "drop",   "day": 0, "time": "21:00", "vehicle_seats": 6, "filler_riders": 0, "cab_label": "KA-03-GX-2100 (Tempo)"},
+    {"company_id": "globex", "id": "GLX-R1-PICK-D1-0830", "route_id": "R1", "trip_type": "pickup", "day": 1, "time": "08:30", "vehicle_seats": 6, "filler_riders": 2, "cab_label": "KA-03-GX-0830 (Tempo)"},
+    {"company_id": "globex", "id": "GLX-R1-PICK-D1-0930", "route_id": "R1", "trip_type": "pickup", "day": 1, "time": "09:30", "vehicle_seats": 6, "filler_riders": 0, "cab_label": "KA-03-GX-0930 (Tempo)"},
+    {"company_id": "globex", "id": "GLX-R1-DROP-D1-1930", "route_id": "R1", "trip_type": "drop",   "day": 1, "time": "19:30", "vehicle_seats": 6, "filler_riders": 2, "cab_label": "KA-03-GX-1931 (Tempo)"},
+    {"company_id": "globex", "id": "GLX-R1-DROP-D1-2030", "route_id": "R1", "trip_type": "drop",   "day": 1, "time": "20:30", "vehicle_seats": 6, "filler_riders": 1, "cab_label": "KA-03-GX-2031 (Tempo)"}
+  ],
+  "roster_entries": [
+    {"company_id": "acme",   "id": "RE-A001-D0-DROP", "employee_id": "A001", "day": 0, "trip_type": "drop",   "trip_id": "ACME-R1-DROP-D0-1900"},
+    {"company_id": "acme",   "id": "RE-A001-D1-PICK", "employee_id": "A001", "day": 1, "trip_type": "pickup", "trip_id": "ACME-R1-PICK-D1-0900"},
+    {"company_id": "acme",   "id": "RE-A001-D1-DROP", "employee_id": "A001", "day": 1, "trip_type": "drop",   "trip_id": "ACME-R1-DROP-D1-1900"},
+    {"company_id": "acme",   "id": "RE-A002-D0-DROP", "employee_id": "A002", "day": 0, "trip_type": "drop",   "trip_id": "ACME-R1-DROP-D0-2100"},
+    {"company_id": "acme",   "id": "RE-A002-D1-PICK", "employee_id": "A002", "day": 1, "trip_type": "pickup", "trip_id": "ACME-R1-PICK-D1-0900"},
+    {"company_id": "acme",   "id": "RE-A002-D1-DROP", "employee_id": "A002", "day": 1, "trip_type": "drop",   "trip_id": "ACME-R1-DROP-D1-2100"},
+    {"company_id": "acme",   "id": "RE-A003-D0-DROP", "employee_id": "A003", "day": 0, "trip_type": "drop",   "trip_id": "ACME-R1-DROP-D0-1800"},
+    {"company_id": "acme",   "id": "RE-A004-D0-DROP", "employee_id": "A004", "day": 0, "trip_type": "drop",   "trip_id": "ACME-R1-DROP-D0-1900"},
+    {"company_id": "acme",   "id": "RE-A005-D0-DROP", "employee_id": "A005", "day": 0, "trip_type": "drop",   "trip_id": "ACME-R2-DROP-D0-1900"},
+    {"company_id": "acme",   "id": "RE-A005-D1-PICK", "employee_id": "A005", "day": 1, "trip_type": "pickup", "trip_id": "ACME-R2-PICK-D1-0900"},
+
+    {"company_id": "globex", "id": "RE-G001-D0-DROP", "employee_id": "G001", "day": 0, "trip_type": "drop",   "trip_id": "GLX-R1-DROP-D0-1930"},
+    {"company_id": "globex", "id": "RE-G001-D1-PICK", "employee_id": "G001", "day": 1, "trip_type": "pickup", "trip_id": "GLX-R1-PICK-D1-0830"},
+    {"company_id": "globex", "id": "RE-G001-D1-DROP", "employee_id": "G001", "day": 1, "trip_type": "drop",   "trip_id": "GLX-R1-DROP-D1-1930"},
+    {"company_id": "globex", "id": "RE-G002-D0-DROP", "employee_id": "G002", "day": 0, "trip_type": "drop",   "trip_id": "GLX-R1-DROP-D0-1730"},
+    {"company_id": "globex", "id": "RE-G003-D0-DROP", "employee_id": "G003", "day": 0, "trip_type": "drop",   "trip_id": "GLX-R1-DROP-D0-2100"},
+    {"company_id": "globex", "id": "RE-G003-D1-PICK", "employee_id": "G003", "day": 1, "trip_type": "pickup", "trip_id": "GLX-R1-PICK-D1-0830"}
+  ],
+  "_scenario_map": {
+    "acme_happy_path":        "A001 at D0 15:00: 'move my drop to 8:30' -> ACME-R1-DROP-D0-2030 has 1 seat -> APPLIED",
+    "acme_full_cab":          "A001 at D0 15:00: '8 pm' -> ACME-R1-DROP-D0-2000 is 4/4 -> REJECTED(NO_SEAT) + options 8:30 PM, 9:00 PM, 6:00 PM",
+    "acme_cutoff_escalate":   "A001 at D0 17:30: '8:30 pm' -> deadline 17:00 passed -> NEEDS_APPROVAL (Acme cut-off is escalatable)",
+    "acme_window_escalate":   "A003 at D0 14:00: '10 pm' -> |22:00-18:00| = 240 > 180 -> NEEDS_APPROVAL",
+    "globex_cutoff_hard":     "G001 at D0 18:45: '9 pm' -> deadline 18:30 passed, not escalatable -> REJECTED, no options, desk phone",
+    "globex_window_escalate": "G002 at D0 14:00: '9 pm' -> |21:00-17:30| = 210 > 120 -> NEEDS_APPROVAL",
+    "globex_daily_limit":     "G003 makes 2 applied changes on D0, 3rd -> DAILY_CHANGE_LIMIT (escalatable)",
+    "last_seat_race_acme":    "A001 and A004 (both on 19:00) request ACME-R1-DROP-D0-2030 (1 seat) concurrently at D0 15:00 -> exactly one APPLIED",
+    "last_seat_race_globex":  "G001 and G003 request GLX-R1-DROP-D0-2000 (1 seat) concurrently at D0 15:00 -> exactly one APPLIED",
+    "isolation_same_zone":    "A001 asks for 8 PM: Acme 20:00 is full while Globex 20:00 (same zones) has a seat -> Globex trip must never be offered",
+    "cancel_wfh":             "A002 at D0 20:00: 'WFH tomorrow, cancel my pickup' -> deadline D1 06:00 -> APPLIED cancel, seat freed",
+    "clarify_time":           "A001 at D0 14:00: 'can I go a bit late today?' -> trip_type inferred (only drop today), time unparseable -> clarify with options",
+    "clarify_trip_type":      "A001 at D0 20:00: 'change my cab tomorrow' -> D1 has pickup and drop -> clarify trip type"
+  }
+}
