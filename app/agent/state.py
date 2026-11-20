@@ -30,6 +30,7 @@ class ConversationState(TypedDict, total=False):
     user_text: str
     mode: str  # "normal" | "pending"
     roster_lines: list[str]
+    resume: dict[str, Any] | None  # what resumed the paused graph: manager decision / expiry / employee message
     llm_response: dict[str, Any] | None
     degraded: bool
     repair_note: str | None

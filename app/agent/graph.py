@@ -15,8 +15,10 @@ from typing import Any, Literal
 
 from langgraph.graph import END, START, StateGraph
 from langgraph.runtime import Runtime
+from langgraph.types import interrupt
 
 from app.agent import prompts, templates
+from app.agent.approval_flow import finalize_request
 from app.agent.context import RunContext
 from app.agent.guard import check_prose
 from app.agent.state import ConversationState
@@ -156,6 +158,13 @@ async def tool_gate(state: ConversationState, runtime: Rt) -> dict[str, Any]:
         log.info("extra tool calls dropped", extra={"fields": {"dropped": dropped}})
     verdict = validate_call(first or {}, mode=state.get("mode", "normal"), user_texts=_user_texts(state))
     if isinstance(verdict, GateError):
+        if verdict.code == "INVALID_TOOL" and state.get("mode") == "pending":
+            # They asked for something else while a request is with the manager: polite, zero extra LLM calls.
+            blocked = ToolResult(
+                status="PENDING_BLOCKED", template="pending_blocked",
+                params={"request_id": state.get("pending_request_id") or ""},
+            )  # fmt: skip
+            return {"call": None, "result": blocked.model_dump()}
         repairs = state.get("repairs", 0)
         can_repair = repairs < MAX_REPAIRS and ctx.llm.budget.remaining > 0 and not state.get("degraded")
         log.warning("tool call rejected by gate", extra={"fields": {"code": verdict.code, "detail": verdict.detail}})
@@ -173,9 +182,11 @@ async def tool_gate(state: ConversationState, runtime: Rt) -> dict[str, Any]:
     }
 
 
-def route_after_gate(state: ConversationState) -> Literal["execute", "interpret", "fallback"]:
+def route_after_gate(state: ConversationState) -> Literal["execute", "interpret", "fallback", "respond_outcome"]:
     if state.get("call"):
         return "execute"
+    if state.get("result"):
+        return "respond_outcome"
     return "fallback" if state.get("fail_reason") else "interpret"
 
 
@@ -227,6 +238,46 @@ async def fallback(state: ConversationState, runtime: Rt) -> dict[str, Any]:
     return {"reply": reply, "status": "error", "last_outcome": "FALLBACK", "messages": [_assistant_message(ctx, reply)]}
 
 
+async def await_manager(state: ConversationState, runtime: Rt) -> dict[str, Any]:
+    """Pause here until a manager decides, the request expires, or the employee writes.
+
+    interrupt() MUST be the first statement: on resume LangGraph re-runs this node from the top, so
+    anything before it would run twice. The pause is stored by the Postgres checkpointer, so it
+    survives a process restart.
+    """
+    payload = interrupt({"request_id": state.get("pending_request_id")})
+    if payload.get("kind") == "employee_message":
+        return {"user_text": payload["text"], "resume": None}
+    return {"resume": payload}
+
+
+def route_after_await(state: ConversationState) -> Literal["ingest", "apply_decision"]:
+    return "apply_decision" if state.get("resume") else "ingest"
+
+
+async def apply_decision(state: ConversationState, runtime: Rt) -> dict[str, Any]:
+    """Re-validate against current data, apply through the booking service, tell the employee."""
+    ctx = runtime.context
+    payload = state.get("resume") or {}
+    if payload.get("request_id") != state.get("pending_request_id"):
+        log.warning("resume for a different request ignored")
+        return {"resume": None}
+    result = await finalize_request(ctx, payload["request_id"])
+    if result is None:  # already finalised elsewhere: stay quiet, just stop waiting
+        return {"resume": None, "pending_request_id": None}
+    reply = templates.render(result.template, result.params)
+    update: dict[str, Any] = {
+        "resume": None, "reply": reply, "status": result.envelope_status, "request": result.request,
+        "options": result.options, "last_outcome": result.status, "messages": [_assistant_message(ctx, reply)],
+    }  # fmt: skip
+    update.update(result.updates)
+    return update
+
+
+def route_after_respond(state: ConversationState) -> Literal["await_manager", "__end__"]:
+    return "await_manager" if state.get("pending_request_id") else END
+
+
 async def _audit_guard(ctx: RunContext, text: str) -> None:
     try:
         async with ctx.pool.connection() as conn:
@@ -257,12 +308,16 @@ def build_graph(checkpointer: Any):  # type: ignore[no-untyped-def]
     graph.add_node("respond_outcome", respond_outcome)
     graph.add_node("guard_text", guard_text)
     graph.add_node("fallback", fallback)
+    graph.add_node("await_manager", await_manager)
+    graph.add_node("apply_decision", apply_decision)
 
     graph.add_edge(START, "ingest")
     graph.add_edge("ingest", "interpret")
     graph.add_conditional_edges("interpret", route_after_interpret)
     graph.add_conditional_edges("tool_gate", route_after_gate)
     graph.add_edge("execute", "respond_outcome")
-    for terminal in ("respond_outcome", "guard_text", "fallback"):
+    graph.add_conditional_edges("respond_outcome", route_after_respond)
+    graph.add_conditional_edges("await_manager", route_after_await)
+    for terminal in ("guard_text", "fallback", "apply_decision"):
         graph.add_edge(terminal, END)
     return graph.compile(checkpointer=checkpointer)

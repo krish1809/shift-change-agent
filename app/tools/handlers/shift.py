@@ -511,7 +511,7 @@ async def _escalate(
             template="duplicate",
             request=_request_info(request),
             params={"request_id": request.id, "status_words": "waiting for approval"},
-            updates={"pending_offer": None, "pending_request_id": request.id},
+            updates={"pending_offer": None},
         )
     return ToolResult(
         status="PENDING_APPROVAL",
