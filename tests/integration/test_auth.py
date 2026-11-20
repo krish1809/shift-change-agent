@@ -138,3 +138,18 @@ async def test_dev_endpoints_disabled_outside_dev(clock) -> None:
         assert r.status_code == 404
         r = await c.get("/dev/people")
         assert r.status_code == 404
+
+
+async def test_token_issued_by_a_demo_clock_ahead_of_real_time_is_accepted() -> None:
+    """Bug found in the live demo: with the demo clock set ahead of real time, PyJWT rejected every token
+    because it compared 'iat' with the wall clock. All time claims now use the injected clock."""
+    from datetime import UTC, datetime, timedelta
+
+    from app.domain.clock import FrozenClock
+
+    future = FrozenClock(datetime.now(UTC) + timedelta(days=30))
+    async with running(build_app(make_settings(), clock=future)) as client:
+        r = await client.get("/me/roster", headers=bearer("acme", "A001", future.now()))
+        assert r.status_code == 200
+        expired = token("acme", "A001", "employee", future.now() - timedelta(hours=9))
+        assert (await client.get("/me/roster", headers={"Authorization": f"Bearer {expired}"})).status_code == 401

@@ -61,7 +61,10 @@ def verify_token(token: str, *, secret: str, now: datetime) -> AuthContext:
             algorithms=[ALGORITHM],  # explicit allowlist: rejects alg=none and algorithm confusion
             audience=AUDIENCE,
             issuer=ISSUER,
-            options={"require": REQUIRED_CLAIMS, "verify_exp": False},
+            # Time claims are checked below against the injected clock, NOT the wall clock: the dev issuer
+            # stamps tokens with the (possibly moved) demo clock, so PyJWT's wall-clock iat/nbf check would
+            # reject a token "issued in the future" the moment the demo clock is set ahead.
+            options={"require": REQUIRED_CLAIMS, "verify_exp": False, "verify_iat": False, "verify_nbf": False},
         )
     except jwt.PyJWTError as exc:
         raise InvalidToken(type(exc).__name__) from exc
