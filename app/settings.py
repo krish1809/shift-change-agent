@@ -31,7 +31,7 @@ class Settings(BaseSettings):
     gemini_base_url: str = "https://generativelanguage.googleapis.com/v1beta/openai/"
     llm_fallback_provider: Literal["groq", "gemini", ""] = "gemini"
 
-    llm_timeout_ms: int = 3000
+    llm_timeout_ms: int = 4000
     max_llm_calls_per_turn: int = 4
     tool_timeout_ms: int = 1000
     turn_deadline_ms: int = 8000
