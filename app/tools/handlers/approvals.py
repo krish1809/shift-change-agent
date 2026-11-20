@@ -7,19 +7,9 @@ from app.db.repositories import requests as requests_repo
 from app.domain.formatting import fmt_time
 from app.domain.models import ShiftRequest
 from app.tools.context import ToolContext
+from app.tools.handlers.status_words import STATUS_WORDS
 from app.tools.results import ToolResult
 from app.tools.schemas import GetRequestStatusArgs, WithdrawRequestArgs
-
-STATUS_WORDS = {
-    "APPLIED": "done",
-    "APPROVED_APPLIED": "approved and applied",
-    "APPROVAL_REJECTED": "declined by your manager",
-    "APPROVED_BUT_UNAVAILABLE": "approved, but the seat was no longer available",
-    "EXPIRED": "expired without a decision",
-    "WITHDRAWN": "withdrawn",
-    "REJECTED": "rejected",
-    "PENDING_APPROVAL": "waiting for your transport manager",
-}
 
 
 async def _summary(ctx: ToolContext, conn, request: ShiftRequest) -> str:
@@ -35,6 +25,8 @@ async def _summary(ctx: ToolContext, conn, request: ShiftRequest) -> str:
 
 async def _find(ctx: ToolContext, conn, request_id: str | None) -> ShiftRequest | None:
     # Always scoped to the caller: someone else's request id simply isn't found.
+    # In a paused chat, "status" / "withdraw it" mean THIS chat's request, not the latest one anywhere.
+    request_id = request_id or ctx.pending_request_id
     if request_id:
         return await requests_repo.get_request(
             conn, ctx.auth.company_id, request_id.upper(), employee_id=ctx.auth.employee_id
