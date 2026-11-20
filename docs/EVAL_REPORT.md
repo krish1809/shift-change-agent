@@ -1,5 +1,7 @@
 # Evaluation report
 
+> A formatted version of this report is in [`EVAL_REPORT.pdf`](EVAL_REPORT.pdf) (built from `docs/report/eval_report.tex` by `python -m scripts.build_report`, with the numbers read from the results files).
+
 ## 1. Summary
 
 | Layer | Result |
@@ -9,7 +11,7 @@
 | LLM calls per message (all eval turns) | mean **1.01**, max **2** (cap 4) |
 | In-process reply latency, fake model (84 turns) | p50 58 ms, p95 100 ms, max 1,152 ms (max = deliberate tool timeout/retry cases) |
 | Evaluation set, live mode (Groq `openai/gpt-oss-20b`, Gemini `gemini-3.1-flash-lite` fallback) | **36 / 36 passed** (the 36 cases that make sense with a real model; the other 24 need scripted bad output, restarts or fault control) |
-| Reply latency with the real LLM (76 messages, `eval/latency.json`) | p50 **1.9 s**, p95 **4.1 s**, max 4.1 s, mean **1.0** LLM calls per message |
+| Reply latency with the real LLM | final live run (51 turns): p50 **0.7 s**, p95 **1.6 s**, max 2.6 s · earlier 76-message benchmark under free-tier throttling (`eval/latency.json`): p50 1.9 s, p95 4.1 s · always **1** LLM call per message |
 
 p95 < 5 s holds with a real model, but with a thin margin: the tail is the free tier. When Groq answers 429 the
 agent retries on the Gemini fallback, which takes 3-4 s. A paid tier or a second fast provider would remove that tail.
@@ -60,9 +62,10 @@ agent retries on the Gemini fallback, which takes 3-4 s. A paid tier or a second
    - a chat whose request was withdrawn elsewhere stayed in "waiting for manager" mode;
    - the follow-up "what time instead?" always said *today*;
    - **with the demo clock set ahead of real time every JWT was rejected** (PyJWT checked `iat` against the wall clock). Found by walking through the demo, not by the suite, because test clocks are in the past.
-9. **Free-tier quota.** A later live rerun hit Groq's daily token limit (200,000 tokens/day; one call ≈ 1,250 tokens ≈ 160 messages/day). The affected turns ended in the plain "nothing was changed, try again" reply, which is the designed behaviour. The committed live results are from the earlier full run; tool descriptions were refined after it (to fix two tool-choice slips seen live) and a fresh live run is pending the quota reset.
+9. **Final live run** on the current code with a fresh provider quota: **36/36**, no provider errors, p95 1.6 s (`eval/results.live.jsonl`).
+10. **Free-tier quota.** A later live rerun hit Groq's daily token limit (200,000 tokens/day; one call ≈ 1,250 tokens ≈ 160 messages/day). The affected turns ended in the plain "nothing was changed, try again" reply, which is the designed behaviour. That run was repeated with a fresh quota (item 9).
 
-10. **Fallback-path live run** (Groq out of daily quota, so after one 429 every call went to Gemini `gemini-3.1-flash-lite`): **32/36**, p95 4.07 s, 1 call per message. 2 failures were Gemini timeouts (11 of ~51 calls exceeded the 4 s per-call limit; the turns ended in the plain "nothing was changed" reply), 2 were Gemini listing cab options where a clarifying question is expected (safe, nothing changed, but a different behaviour; expectations were not loosened). Conclusion: Groq stays primary (0.75 s typical, steady); Gemini is a working but slower fallback. Added a 60 s cooldown so a rate-limited provider is skipped instead of costing every message an extra call.
+11. **Fallback-path live run** (Groq out of daily quota, so after one 429 every call went to Gemini `gemini-3.1-flash-lite`): **32/36**, p95 4.07 s, 1 call per message. 2 failures were Gemini timeouts (11 of ~51 calls exceeded the 4 s per-call limit; the turns ended in the plain "nothing was changed" reply), 2 were Gemini listing cab options where a clarifying question is expected (safe, nothing changed, but a different behaviour; expectations were not loosened). Conclusion: Groq stays primary (0.75 s typical, steady); Gemini is a working but slower fallback. Added a 60 s cooldown so a rate-limited provider is skipped instead of costing every message an extra call.
 
 ## 5. Known failures and limitations
 

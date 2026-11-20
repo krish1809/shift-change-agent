@@ -15,7 +15,7 @@ tells the employee plainly what happened.
 |---|---|
 | One-command start | `docker compose up --build` → <http://localhost:8000> (no API key needed to start) |
 | **Evaluation set** (one line per case: `id, input, expected, actual, pass, notes`) | [`eval/results.fake.jsonl`](eval/results.fake.jsonl) – 60 cases, 60 pass (scripted model, reproducible offline) · [`eval/results.live.jsonl`](eval/results.live.jsonl) – 36 cases, 36 pass (real Groq model) |
-| Evaluation report | [`docs/EVAL_REPORT.md`](docs/EVAL_REPORT.md) – scenarios, method, results, known failures, limitations, trade-offs |
+| Evaluation report | [`docs/EVAL_REPORT.pdf`](docs/EVAL_REPORT.pdf) (3 pages; Markdown version [`docs/EVAL_REPORT.md`](docs/EVAL_REPORT.md)) – scenarios, method, results, known failures, limitations, trade-offs |
 | Design | [Design decisions](#design-decisions), [Trade-offs](#trade-offs), [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) |
 | Tests | `docker compose run --rm tests` (321 tests) · eval: `docker compose run --rm eval` |
 | Bonus | Last-seat race + double submit (`tests/integration/test_concurrency.py`, eval CONC-01/02) |
