@@ -91,6 +91,11 @@ async def _pick_entry(
             template="not_found",
             params={"what": what, "hint": "Ask me for your schedule to see your upcoming trips."},
         )
+    if trip_type is not None and day is None and len({e.service_date for e in candidates}) > 1:
+        # "move my drop to 9 pm" with no day: people mean their NEXT drop, as a desk executive would.
+        # The reply always names the day, so a wrong assumption is visible and cheap to correct.
+        soonest = min(e.service_date for e in candidates)
+        candidates = [e for e in candidates if e.service_date == soonest]
     if len(candidates) == 1:
         return candidates[0]
     if len({e.trip_type for e in candidates}) > 1 and trip_type is None:

@@ -483,3 +483,40 @@ async def test_status_and_withdraw_only_for_own_requests(pool, clock) -> None:
             await conn.execute("SELECT status, decision FROM shift_requests WHERE id=%s", (req_id,))
         ).fetchone()
     assert (row["status"], row["decision"]) == ("WITHDRAWN", "withdrawn")
+
+
+async def test_no_date_with_known_trip_type_defaults_to_the_next_trip(pool, clock) -> None:
+    """'move my drop to 9 pm' means the NEXT drop (today), and the reply names the day."""
+    ctx = await make_ctx(pool, clock, "acme", "A001")
+    result, reply = await call(
+        ctx, "move my drop to 9 pm", RS, change_type="reschedule", trip_type="drop", time_text="9 pm"
+    )
+    assert result.status == "APPLIED" and "drop today" in reply
+    assert await _entry_trip(pool, "acme", "A001", "RE-A001-D0-DROP") == "ACME-R1-DROP-D0-2100"
+    assert await _entry_trip(pool, "acme", "A001", "RE-A001-D1-DROP") == "ACME-R1-DROP-D1-1900"
+
+
+async def test_no_date_and_no_trip_type_still_asks(pool, clock) -> None:
+    clock.set(d0("8:00"))
+    ctx = await make_ctx(pool, clock, "globex", "G001")
+    result, _ = await call(ctx, "move it to 9", RS, change_type="reschedule", time_text="9")
+    assert result.template == "clarify_trip_type"
+
+
+@pytest.mark.no_db
+@pytest.mark.parametrize(
+    ("span", "user_text", "grounded"),
+    [
+        ("9 pm", "push my drop tonight to 9 pm?", True),
+        ("9pm", "push my drop tonight to 9 pm?", True),  # spacing differs
+        ("9:00 pm", "push my drop tonight to 9 pm?", True),  # same explicit clock time
+        ("21:00", "push my drop tonight to 9 pm?", True),
+        ("20:00", "make it 8", False),  # bare '8' must not become 20:00 behind the user's back
+        ("20:30", "later please", False),  # invented
+        ("9 pm", "make it 8 pm", False),
+    ],
+)
+def test_time_grounding_accepts_equivalent_spellings_but_not_inventions(span, user_text, grounded) -> None:
+    from app.tools.gate import is_grounded
+
+    assert is_grounded(span, [user_text], is_time=True) is grounded
