@@ -11,6 +11,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from app.api.errors import AppError
 from app.auth.jwt import issue_token
 from app.db.repositories import employees
+from app.domain.clock import parse_aware
 
 router = APIRouter(prefix="/dev", tags=["dev"])
 
@@ -57,3 +58,41 @@ async def dev_people(request: Request) -> dict:
             )
         ).fetchall()
     return {"people": rows}
+
+
+class ClockBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    now: str | None = Field(default=None, max_length=40, description="ISO datetime, or null to use real time")
+
+
+@router.post("/clock", dependencies=[Depends(dev_only)])
+async def dev_clock(body: ClockBody, request: Request) -> dict:
+    """Pretend it is 5:30 PM so cut-off scenarios can be demonstrated at any time of day."""
+    clock = request.app.state.clock
+    try:
+        moment = parse_aware(body.now) if body.now else None
+    except ValueError as exc:
+        raise AppError(422, "Use an ISO time such as 2026-03-02T17:30:00+05:30.") from exc
+    clock.set(moment)
+    return {"now": clock.now().isoformat()}
+
+
+class FaultBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    tool: str = Field(min_length=1, max_length=40)
+    mode: str | None = Field(
+        default=None, max_length=20, description="timeout | error | fail_once | slow:<ms>; null clears"
+    )
+
+
+@router.post("/faults", dependencies=[Depends(dev_only)])
+async def dev_faults(body: FaultBody, request: Request) -> dict:
+    faults = request.app.state.faults
+    try:
+        if body.mode is None:
+            faults.clear(body.tool)
+        else:
+            faults.arm(body.tool, body.mode)
+    except ValueError as exc:
+        raise AppError(422, "Unknown fault mode. Use timeout, error, fail_once or slow:<ms>.") from exc
+    return {"faults": faults.active()}
