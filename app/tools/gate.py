@@ -15,6 +15,7 @@ from typing import Any
 
 from pydantic import BaseModel, ValidationError
 
+from app.domain.time_resolver import resolve_time
 from app.tools.registry import REGISTRY
 
 GROUNDED_FIELDS = ("time_text", "date_text", "option_ref")
@@ -39,9 +40,39 @@ def _norm(text: str) -> str:
     return re.sub(r"\s+", " ", text.lower()).strip()
 
 
-def is_grounded(span: str, user_texts: list[str]) -> bool:
+def _compact(text: str) -> str:
+    """Lower-case with spaces and dots removed, so '9pm', '9 pm' and '9 p.m.' compare equal."""
+    return re.sub(r"[\s.]+", "", text.lower())
+
+
+_TIME_TOKEN = re.compile(r"\d{1,2}(?:[:.]\d{2})?\s*(?:a\.?m\.?|p\.?m\.?)?", re.IGNORECASE)
+
+
+def _same_explicit_time(span: str, texts: list[str]) -> bool:
+    """'9:00 pm' vs the user's '9 pm': same clock time, so not an invention.
+
+    Only when the USER's own token is explicit (has am/pm or is 24h). A bare '8' stays ambiguous, so a model
+    can't turn it into '20:00' behind the user's back.
+    """
+    wanted = resolve_time(span)
+    if wanted.kind != "exact":
+        return False
+    for text in texts:
+        for match in _TIME_TOKEN.finditer(text):
+            theirs = resolve_time(match.group(0))
+            if theirs.kind == "exact" and theirs.value == wanted.value:
+                return True
+    return False
+
+
+def is_grounded(span: str, user_texts: list[str], *, is_time: bool = False) -> bool:
+    recent = user_texts[-RECENT_USER_MESSAGES:]
     needle = _norm(span)
-    return bool(needle) and any(needle in _norm(t) for t in user_texts[-RECENT_USER_MESSAGES:])
+    if not needle:
+        return False
+    if any(needle in _norm(t) or _compact(span) in _compact(t) for t in recent):
+        return True
+    return is_time and _same_explicit_time(span, recent)
 
 
 def select_call(tool_calls: list[dict[str, Any]], mode: str) -> tuple[dict[str, Any] | None, int]:
@@ -72,7 +103,7 @@ def _ground(call: ValidCall, user_texts: list[str]) -> ValidCall:
     updates: dict[str, Any] = {}
     for fname in GROUNDED_FIELDS:
         value = getattr(call.args, fname, None)
-        if value and not is_grounded(value, user_texts):
+        if value and not is_grounded(value, user_texts, is_time=(fname == "time_text")):
             call.ungrounded.append(fname)
             if fname == "date_text":
                 continue  # low risk: the handler only accepts it for the soonest trip, and replies name the day
