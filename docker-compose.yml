@@ -1,0 +1,74 @@
+# One command: `docker compose up --build`  ->  http://localhost:8000
+# Optional: put LLM keys in a .env file next to this one (see .env.example). Without keys the
+# agent runs on the deterministic rule-based interpreter.
+x-app-env: &app-env
+  ENV: ${ENV:-dev}
+  JWT_SECRET: ${JWT_SECRET:-dev-only-insecure-secret-change-me-0123456789}
+  LLM_PROVIDER: ${LLM_PROVIDER:-groq}
+  GROQ_API_KEY: ${GROQ_API_KEY:-}
+  GROQ_MODEL: ${GROQ_MODEL:-}
+  GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+  GEMINI_MODEL: ${GEMINI_MODEL:-}
+  LLM_FALLBACK_PROVIDER: ${LLM_FALLBACK_PROVIDER:-gemini}
+  SEED_BASE_DATE: ${SEED_BASE_DATE:-}
+  CLOCK_OVERRIDE: ${CLOCK_OVERRIDE:-}
+  FAULTS: ${FAULTS:-}
+  LOG_LEVEL: ${LOG_LEVEL:-INFO}
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: shift
+      POSTGRES_PASSWORD: shift
+      POSTGRES_DB: shift
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./docker/initdb.sql:/docker-entrypoint-initdb.d/initdb.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U shift -d shift"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  api:
+    build: .
+    environment:
+      <<: *app-env
+      DATABASE_URL: postgresql://shift:shift@db:5432/shift
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  tests:
+    build: .
+    profiles: ["test"]
+    environment:
+      ENV: test
+      DATABASE_URL: postgresql://shift:shift@db:5432/shift_test
+      LLM_PROVIDER: fake
+      LOG_LEVEL: WARNING
+    command: ["pytest", "-q"]
+    depends_on:
+      db:
+        condition: service_healthy
+
+  eval:
+    build: .
+    profiles: ["eval"]
+    environment:
+      <<: *app-env
+      ENV: test
+      DATABASE_URL: postgresql://shift:shift@db:5432/shift_eval
+      LOG_LEVEL: WARNING
+    volumes:
+      - ./eval:/app/eval
+    command: ["python", "-m", "eval.run_eval", "--mode", "fake"]
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  pgdata:
