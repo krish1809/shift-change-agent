@@ -37,13 +37,18 @@ async def pool() -> AsyncIterator[AsyncConnectionPool]:
     await pool.close()
 
 
-@pytest.fixture(autouse=True)
-async def _fresh_data(request: pytest.FixtureRequest) -> None:
-    if "no_db" in request.keywords:
-        return
-    db_pool: AsyncConnectionPool = request.getfixturevalue("pool")
-    async with db_pool.connection() as conn:
+@pytest.fixture
+async def fresh_db(pool: AsyncConnectionPool) -> AsyncConnectionPool:
+    async with pool.connection() as conn:
         await reseed(conn, BASE_DATE)
+    return pool
+
+
+@pytest.fixture(autouse=True)
+def _fresh_data(request: pytest.FixtureRequest) -> None:
+    """Every DB test starts from the seed. Pure unit tests opt out with @pytest.mark.no_db."""
+    if "no_db" not in request.keywords:
+        request.getfixturevalue("fresh_db")
 
 
 @pytest.fixture
