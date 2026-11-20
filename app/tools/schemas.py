@@ -60,15 +60,16 @@ class GetMyPolicyArgs(ToolArgs):
 
 DESCRIPTIONS = {
     "get_my_roster": (
-        "Answer questions about the user's OWN booked trips and times, e.g. 'what time is my pickup tomorrow', "
-        "'my schedule'. Use this instead of answering from memory."
+        "The user's OWN booked trips and times, e.g. 'what time is my pickup tomorrow?', 'what's my schedule?'. "
+        "Not for finding other cabs."
     ),
     "check_cab_options": (
-        "List OTHER cabs with free seats the user could switch to. Only when they ask what alternatives/slots exist; "
-        "never for questions about their own booking."
+        "Other cabs with free seats the user could switch to, e.g. 'what drops are there after 8?', 'any later cab?', "
+        "'which pickups are available tomorrow?'. Read-only: changes nothing."
     ),
     "request_shift_change": (
-        "Change (reschedule) or cancel one of the user's pickups/drops. Rules are checked by the system."
+        "The user wants a different cab/time or wants to cancel, e.g. 'move my drop to 9 pm', 'I want the 8 pm drop', "
+        "'can I go a bit late?', 'cancel tomorrow's pickup'. Rules are checked by the system."
     ),
     "respond_to_offer": (
         "The user answered yes/no to the question in the last reply (send to manager? / did you mean?)."
