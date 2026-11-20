@@ -315,8 +315,8 @@ def generic_help(_: P) -> str:
 
 def turn_timeout(p: P) -> str:
     return (
-        "This is taking longer than usual. I'll post the result in this chat as soon as it's done; "
-        "until you see a confirmation, assume nothing has changed."
+        "This is taking longer than usual and I couldn't finish. Please ask \"what's my schedule?\" to see your "
+        "current booking before trying again, so we don't do it twice."
     )
 
 
