@@ -520,3 +520,21 @@ def test_time_grounding_accepts_equivalent_spellings_but_not_inventions(span, us
     from app.tools.gate import is_grounded
 
     assert is_grounded(span, [user_text], is_time=True) is grounded
+
+
+async def test_declining_a_did_you_mean_names_the_right_day(pool, clock) -> None:
+    """Bug: the follow-up question always said 'today'."""
+    clock.set(d0("20:00"))
+    ctx = await make_ctx(pool, clock, "acme", "A001")
+    await call(
+        ctx,
+        "move my drop tomorrow, later please",
+        RS,
+        change_type="reschedule",
+        trip_type="drop",
+        date_text="tomorrow",
+        time_text="20:30",
+    )
+    assert ctx.pending_offer["kind"] == "confirm_interpretation"
+    _, reply = await call(ctx, "no", "respond_to_offer", accept=False)
+    assert "drop tomorrow" in reply
