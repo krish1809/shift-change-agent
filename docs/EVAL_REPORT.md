@@ -4,7 +4,7 @@
 
 | Layer | Result |
 |---|---|
-| pytest suite (fake LLM, real Postgres, frozen clock) | **317 passed** |
+| pytest suite (fake LLM, real Postgres, frozen clock) | **321 passed** |
 | Evaluation set, fake mode (`eval/results.fake.jsonl`) | **60 / 60 passed** (9 categories) |
 | LLM calls per message (all eval turns) | mean **1.01**, max **2** (cap 4) |
 | In-process reply latency, fake model (84 turns) | p50 58 ms, p95 100 ms, max 1,152 ms (max = deliberate tool timeout/retry cases) |
@@ -82,7 +82,7 @@ agent retries on the Gemini fallback, which takes 3-4 s. A paid tier or a second
 ## 7. Reproduce
 
 ```bash
-docker compose run --rm tests        # 317 tests
+docker compose run --rm tests        # 321 tests
 docker compose run --rm eval         # writes eval/results.fake.jsonl (60/60)
 make eval-live                       # needs GROQ_API_KEY + GROQ_MODEL in .env
 make bench                           # live p50/p95 -> eval/latency.json
