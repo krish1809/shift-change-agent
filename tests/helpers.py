@@ -28,7 +28,7 @@ def make_settings(**overrides: Any) -> Settings:
         "llm_fallback_provider": "",
         "jwt_secret": SECRET,
         "log_level": "WARNING",
-        "sweeper_interval_s": 3600,
+        "sweeper_interval_s": 0,
     }
     base.update(overrides)
     return Settings(_env_file=None, **base)  # type: ignore[call-arg]
