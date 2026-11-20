@@ -17,11 +17,12 @@ __pycache__/
 .DS_Store
 
 # build-kit material that is not part of the submission
-CLAUDE.md
-CLAUDE_CODE_PROMPTS.md
-ARCHITECTURE.md
-prompts/
+/CLAUDE.md
+/CLAUDE_CODE_PROMPTS.md
+/ARCHITECTURE.md
+/prompts/
 docs/VIVA_PREP.md
 *.docx
 .claude/
-KIT_README.md
+/KIT_README.md
+docs/IMPLEMENTATION_PLAN.md
