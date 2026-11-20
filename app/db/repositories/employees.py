@@ -7,9 +7,7 @@ from app.domain.models import Employee
 
 async def get_employee(conn: AsyncConnection, company_id: str, employee_id: str) -> Employee | None:
     row = await (
-        await conn.execute(
-            "SELECT * FROM employees WHERE company_id = %s AND id = %s", (company_id, employee_id)
-        )
+        await conn.execute("SELECT * FROM employees WHERE company_id = %s AND id = %s", (company_id, employee_id))
     ).fetchone()
     return Employee(**row) if row else None
 

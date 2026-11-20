@@ -28,9 +28,7 @@ def world() -> World:
     data = load_seed()
     companies, policies = {}, {}
     for c in data["companies"]:
-        companies[c["id"]] = Company(
-            id=c["id"], name=c["name"], timezone=c["timezone"], desk_phone=c["desk_phone"]
-        )
+        companies[c["id"]] = Company(id=c["id"], name=c["name"], timezone=c["timezone"], desk_phone=c["desk_phone"])
         policies[c["id"]] = Policy(company_id=c["id"], **c["policy"])
     zones = {(r["company_id"], r["id"]): r["zones"] for r in data["routes"]}
     employees = {(e["company_id"], e["id"]): Employee(**e) for e in data["employees"]}

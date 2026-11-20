@@ -21,9 +21,7 @@ async def my_roster(
     auth: AuthContext = Depends(require_employee),
 ) -> dict:
     async with request.app.state.pool.connection() as conn:
-        entries = await roster.get_entries_for_employee(
-            conn, auth.company_id, auth.employee_id, [on] if on else None
-        )
+        entries = await roster.get_entries_for_employee(conn, auth.company_id, auth.employee_id, [on] if on else None)
     return {
         "entries": [
             {

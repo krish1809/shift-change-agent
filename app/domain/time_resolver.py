@@ -138,9 +138,7 @@ def _phrase_time(t: str) -> tuple[int, int] | None:
     return None
 
 
-_NUMERIC = re.compile(
-    r"(?<![\d:.])(\d{1,2})(?:[:.](\d{2}))?(?!\d)\s*(am|pm)?|(?<!\d)(\d{1,2})(\d{2})\s*(am|pm)"
-)
+_NUMERIC = re.compile(r"(?<![\d:.])(\d{1,2})(?:[:.](\d{2}))?(?!\d)\s*(am|pm)?|(?<!\d)(\d{1,2})(\d{2})\s*(am|pm)")
 
 
 def _numeric(t: str, meridiem: str | None, anchor: time | None, window: int) -> TimeResolution:
@@ -177,9 +175,7 @@ def _apply_meridiem(hour: int, minute: int, suffix: str) -> time:
     return time(hour, minute)
 
 
-def _pick_reading(
-    hour: int, minute: int, meridiem: str | None, anchor: time | None, window: int
-) -> TimeResolution:
+def _pick_reading(hour: int, minute: int, meridiem: str | None, anchor: time | None, window: int) -> TimeResolution:
     if hour > 12:
         return TimeResolution("exact", time(hour, minute))
     if meridiem:

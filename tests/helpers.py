@@ -15,9 +15,7 @@ from app.auth.jwt import issue_token
 from app.settings import Settings
 from tests.conftest import TEST_DATABASE_URL
 
-LEAK_PATTERNS = re.compile(
-    r"Traceback|File \"|\b\w+(Error|Exception)\b(?!s)|psycopg|langgraph\.|pydantic_core"
-)
+LEAK_PATTERNS = re.compile(r"Traceback|File \"|\b\w+(Error|Exception)\b(?!s)|psycopg|langgraph\.|pydantic_core")
 SECRET = "test-secret-0123456789-0123456789-0123456789"
 
 

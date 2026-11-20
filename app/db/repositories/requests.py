@@ -46,9 +46,7 @@ async def list_requests(
     return [ShiftRequest(**r) for r in rows]
 
 
-async def latest_open_request(
-    conn: AsyncConnection, company_id: str, employee_id: str
-) -> ShiftRequest | None:
+async def latest_open_request(conn: AsyncConnection, company_id: str, employee_id: str) -> ShiftRequest | None:
     open_ = await list_requests(conn, company_id, employee_id=employee_id, status="PENDING_APPROVAL", limit=1)
     return open_[0] if open_ else None
 

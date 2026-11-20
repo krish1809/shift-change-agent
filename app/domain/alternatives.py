@@ -31,6 +31,8 @@ def find_alternatives(
     direction: Direction | None = None,
     exclude_trip_ids: frozenset[str] = frozenset(),
     only_allowed: bool = False,
+    not_before: datetime | None = None,
+    not_after: datetime | None = None,
 ) -> list[Alternative]:
     """Same company/type/date trips with a free seat, nearest to `desired_at` first (ties: earlier).
 
@@ -50,6 +52,8 @@ def find_alternatives(
         if trip.seats_left <= 0 or trip.scheduled_at <= base.now:
             continue
         if base.employee.zone not in trip.route_zones:
+            continue
+        if (not_before and trip.scheduled_at < not_before) or (not_after and trip.scheduled_at > not_after):
             continue
         if direction and current is not None:
             if direction == "later" and trip.scheduled_at <= current.scheduled_at:

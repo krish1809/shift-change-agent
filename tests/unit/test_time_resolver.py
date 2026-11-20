@@ -70,9 +70,7 @@ def test_ambiguous_times(text, ctx, candidates) -> None:
     assert result.candidates == candidates
 
 
-@pytest.mark.parametrize(
-    "text", ["a bit late", "later", "after my meeting", "", "   ", "asap", "30 min later"]
-)
+@pytest.mark.parametrize("text", ["a bit late", "later", "after my meeting", "", "   ", "asap", "30 min later"])
 def test_unparseable_times(text) -> None:
     # "30 min later" with no current trip time can't be resolved either.
     assert resolve_time(text).kind == "unparseable"

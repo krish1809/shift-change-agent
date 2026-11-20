@@ -13,9 +13,7 @@ async def get_company(conn: AsyncConnection, company_id: str) -> Company | None:
 
 
 async def get_policy(conn: AsyncConnection, company_id: str) -> Policy | None:
-    row = await (
-        await conn.execute("SELECT * FROM company_policies WHERE company_id = %s", (company_id,))
-    ).fetchone()
+    row = await (await conn.execute("SELECT * FROM company_policies WHERE company_id = %s", (company_id,))).fetchone()
     return Policy(**row) if row else None
 
 

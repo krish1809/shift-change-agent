@@ -44,9 +44,7 @@ async def get_entries_for_employee(
     return [_to_entry(r) for r in rows]
 
 
-async def get_entry(
-    conn: AsyncConnection, company_id: str, employee_id: str, entry_id: str
-) -> RosterEntry | None:
+async def get_entry(conn: AsyncConnection, company_id: str, employee_id: str, entry_id: str) -> RosterEntry | None:
     row = await (
         await conn.execute(
             _SELECT + " WHERE e.company_id = %s AND e.employee_id = %s AND e.id = %s",
@@ -61,8 +59,7 @@ async def get_entry_for(
 ) -> RosterEntry | None:
     row = await (
         await conn.execute(
-            _SELECT
-            + " WHERE e.company_id = %s AND e.employee_id = %s AND e.service_date = %s AND e.trip_type = %s",
+            _SELECT + " WHERE e.company_id = %s AND e.employee_id = %s AND e.service_date = %s AND e.trip_type = %s",
             (company_id, employee_id, service_date, trip_type),
         )
     ).fetchone()

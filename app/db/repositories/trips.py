@@ -22,9 +22,7 @@ async def get_trip(conn: AsyncConnection, company_id: str, trip_id: str) -> Trip
     return Trip(**row) if row else None
 
 
-async def list_trips(
-    conn: AsyncConnection, company_id: str, *, trip_type: TripType, service_date: date
-) -> list[Trip]:
+async def list_trips(conn: AsyncConnection, company_id: str, *, trip_type: TripType, service_date: date) -> list[Trip]:
     rows = await (
         await conn.execute(
             _SELECT
