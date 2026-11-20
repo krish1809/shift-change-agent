@@ -37,4 +37,8 @@ target-version = "py312"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "ASYNC"]
-ignore = ["B008"]  # FastAPI dependency-injection idiom
+ignore = ["B008"]
+
+[tool.ruff.lint.per-file-ignores]
+"app/agent/prompts.py" = ["E501"]  # prompt text reads better unwrapped
+"app/llm/rule_based.py" = ["E501"]  # regexes  # FastAPI dependency-injection idiom
