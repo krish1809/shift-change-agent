@@ -285,3 +285,72 @@ async def test_decision_body_is_strict(clock, body) -> None:
     async with running(new_app(clock)) as client:
         r = await client.post(f"/manager/requests/{req_id}/decision", json=body, headers=manager(clock))
         assert r.status_code == 422
+
+
+# ---------------------------------------------------------------- regressions found in the code review
+
+
+async def test_asking_again_after_a_rejection_creates_a_new_request(clock) -> None:
+    """Bug: the escalation key didn't vary per offer, so a second escalation collided with the rejected row
+    and the agent claimed 'you already have this request (waiting for approval)'."""
+    session, req_id = await escalate(clock)
+    app = new_app(clock, ScriptedLLM(list(ESCALATE_SCRIPT)))
+    async with running(app) as client:
+        await client.post(f"/manager/requests/{req_id}/decision", json={"decision": "reject"}, headers=manager(clock))
+        first = (await chat(client, "acme", "A001", "move my drop to 8:30 pm", clock.now(), session)).json()
+        assert "send it to your transport manager" in first["reply"]
+        again = (await chat(client, "acme", "A001", "yes, ask my manager", clock.now(), session)).json()
+        assert again["status"] == "pending_approval" and again["request"]["id"] != req_id
+        async with app.state.pool.connection() as conn:
+            rows = await (await conn.execute("SELECT status FROM shift_requests ORDER BY created_at, id")).fetchall()
+        assert [r["status"] for r in rows] == ["APPROVAL_REJECTED", "PENDING_APPROVAL"]
+
+
+async def test_withdraw_in_a_paused_chat_targets_that_chats_request(clock) -> None:
+    """Bug: 'withdraw it' picked the employee's latest open request, which may belong to another chat."""
+    from app.domain.booking import ChangeSpec, record_request
+
+    session, req_id = await escalate(clock)
+    app = new_app(clock, ScriptedLLM([tool("withdraw_request")]))
+    async with running(app) as client:
+        # a second open request, raised from another chat for another trip, created later
+        other = ChangeSpec(
+            "acme",
+            "A001",
+            "RE-A001-D1-DROP",
+            "reschedule",
+            "ACME-R1-DROP-D1-2100",
+            1,
+            "acme:A001:44444444-4444-4444-8444-444444444444",
+        )
+        clock.advance(minutes=1)
+        async with app.state.pool.connection() as conn:
+            other_req = (
+                await record_request(
+                    conn,
+                    other,
+                    status="PENDING_APPROVAL",
+                    from_trip_id="ACME-R1-DROP-D1-1900",
+                    violations=[],
+                    now=clock.now(),
+                    key="k-other",
+                )
+            ).request
+        r = (await chat(client, "acme", "A001", "withdraw it", clock.now(), session)).json()
+        assert req_id in r["reply"]
+        async with app.state.pool.connection() as conn:
+            assert (await requests_repo.get_request(conn, "acme", req_id)).status == "WITHDRAWN"
+            assert (await requests_repo.get_request(conn, "acme", other_req.id)).status == "PENDING_APPROVAL"
+
+
+async def test_chat_leaves_pending_mode_when_its_request_was_finished_elsewhere(clock) -> None:
+    """Bug: withdrawn from another chat -> this chat stayed in 'waiting for your manager' mode forever."""
+    session, req_id = await escalate(clock)
+    change = tool(RS, change_type="reschedule", trip_type="pickup", date_text="tomorrow", time_text="10 am")
+    llm = ScriptedLLM([tool("withdraw_request", request_id=req_id), change])
+    app = new_app(clock, llm)
+    async with running(app) as client:
+        await chat(client, "acme", "A001", f"withdraw {req_id}", clock.now())  # a different, new chat
+        r = (await chat(client, "acme", "A001", "move my pickup tomorrow to 10 am", clock.now(), session)).json()
+        assert "waiting for your transport manager" not in r["reply"]
+        assert "10:00 AM" in r["reply"] and r["request"]["status"] == "APPLIED"

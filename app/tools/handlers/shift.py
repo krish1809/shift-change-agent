@@ -7,6 +7,7 @@ company data, and every answer is a typed ToolResult that templates turn into te
 from __future__ import annotations
 
 import re
+import uuid
 from dataclasses import replace
 from datetime import datetime, time, timedelta
 from typing import Any
@@ -32,6 +33,7 @@ from app.tools.common import (
     upcoming_entries,
 )
 from app.tools.context import ToolContext
+from app.tools.handlers.status_words import STATUS_WORDS
 from app.tools.results import ToolResult
 from app.tools.schemas import RequestShiftChangeArgs, RespondToOfferArgs
 
@@ -243,7 +245,7 @@ async def _reschedule(
                 status="NEEDS_CLARIFICATION",
                 template="clarify_time_ambiguous",
                 params={**params, "candidates": candidates},
-                updates={"draft": {**draft, "time_options": [c.strftime("%H:%M") for c in resolved.candidates]}},
+                updates={"draft": draft},
             )
         if resolved.kind == "exact" and resolved.value is not None:
             target = _find_trip_at(day_trips, ctx.employee.zone, resolved.value, ctx)
@@ -343,6 +345,7 @@ async def process_change(
     *,
     escalate: bool,
     from_offer: bool = False,
+    offer_id: str | None = None,
 ) -> ToolResult:
     """Check every rule, then apply / offer escalation / reject. `escalate=True` = the user already said yes."""
     base = _base_context(ctx, entry, change_type, await _changes_today(ctx, conn))
@@ -372,12 +375,15 @@ async def process_change(
     }
 
     if verdict.escalatable and escalate:
-        return await _escalate(ctx, conn, entry, change_type, target, verdict.violations)
+        return await _escalate(ctx, conn, entry, change_type, target, verdict.violations, offer_id or "")
 
     if verdict.escalatable:
         alts = await _alternatives(ctx, conn, entry, base, desired_at=desired, only_allowed=True) if target else []
         offer = {
             "kind": "escalate",
+            # Each offer has its own id: accepting the SAME offer twice is a duplicate, but asking again later
+            # (e.g. after the manager said no) is a new request.
+            "offer_id": uuid.uuid4().hex,
             "entry_id": entry.id,
             "change_type": change_type,
             "target_trip_id": target.id if target else None,
@@ -460,7 +466,7 @@ async def _apply(
         )
     if result.status == BookingStatus.DUPLICATE:
         existing = result.request
-        words = "already done" if existing and existing.status == "APPLIED" else "waiting for approval"
+        words = STATUS_WORDS.get(existing.status, existing.status.lower()) if existing else "already recorded"
         return ToolResult(
             status="DUPLICATE",
             template="duplicate",
@@ -489,9 +495,10 @@ async def _escalate(
     change_type: str,
     target: Trip | None,
     violations: list[Violation],
+    offer_id: str,
 ) -> ToolResult:
     spec = _spec(ctx, entry, change_type, target)
-    key = booking.idempotency_key(spec, salt="escalate")
+    key = booking.idempotency_key(spec, salt=f"escalate:{offer_id}")
     params = {
         **booking_params(ctx, entry),
         "target_label": time_label(ctx, target) if target else "cancelled",
@@ -515,7 +522,7 @@ async def _escalate(
             status="DUPLICATE",
             template="duplicate",
             request=_request_info(request),
-            params={"request_id": request.id, "status_words": "waiting for approval"},
+            params={"request_id": request.id, "status_words": STATUS_WORDS.get(request.status, request.status.lower())},
             updates={"pending_offer": None},
         )
     return ToolResult(
@@ -530,6 +537,12 @@ async def _escalate(
 # ------------------------------------------------------------------ respond_to_offer
 
 
+def _draft_day(ctx: ToolContext, draft: dict[str, Any]) -> str:
+    if not draft.get("date"):
+        return ""
+    return fmt_day(datetime.fromisoformat(draft["date"]).date(), ctx.today())
+
+
 async def respond_to_offer(ctx: ToolContext, args: RespondToOfferArgs) -> ToolResult:
     offer = ctx.pending_offer
     if not offer:
@@ -541,7 +554,7 @@ async def respond_to_offer(ctx: ToolContext, args: RespondToOfferArgs) -> ToolRe
             return ToolResult(
                 status="NEEDS_CLARIFICATION",
                 template="interpretation_declined",
-                params={"trip_type": draft.get("trip_type", "trip"), "day": "today"},
+                params={"trip_type": draft.get("trip_type", "trip"), "day": _draft_day(ctx, draft)},
                 updates={"pending_offer": None, "draft": draft},
             )
         ctx.draft = draft
@@ -564,4 +577,6 @@ async def respond_to_offer(ctx: ToolContext, args: RespondToOfferArgs) -> ToolRe
         if offer.get("target_trip_id"):
             target = await trips.get_trip(conn, ctx.auth.company_id, offer["target_trip_id"])
         # Re-run the rules: seats and time may have moved since the offer. Never escalate stale facts.
-        return await process_change(ctx, conn, entry, offer["change_type"], target, escalate=True)
+        return await process_change(
+            ctx, conn, entry, offer["change_type"], target, escalate=True, offer_id=offer.get("offer_id")
+        )
