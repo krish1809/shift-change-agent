@@ -26,3 +26,4 @@ docs/VIVA_PREP.md
 .claude/
 /KIT_README.md
 docs/IMPLEMENTATION_PLAN.md
+eval/cases.seed.jsonl
