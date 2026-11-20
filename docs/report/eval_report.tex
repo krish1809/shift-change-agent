@@ -1,0 +1,200 @@
+\documentclass[10.5pt,a4paper]{article}
+\usepackage[a4paper,margin=2cm]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage{booktabs,tabularx,array}
+\usepackage{enumitem}
+\usepackage[table]{xcolor}
+\usepackage{titlesec}
+\usepackage{fancyhdr}
+\usepackage[colorlinks=true,linkcolor=black,urlcolor=blue!60!black]{hyperref}
+
+% ---- live-run numbers (filled from eval/results.live.jsonl) ----
+\newcommand{\livepass}{LIVEPASS}
+\newcommand{\livetotal}{LIVETOTAL}
+\newcommand{\livepfifty}{LIVEP50}
+\newcommand{\liveninetyfive}{LIVEP95}
+\newcommand{\livemax}{LIVEMAX}
+\newcommand{\liveturns}{LIVETURNS}
+\newcommand{\livedate}{LIVEDATE}
+
+\setlist{nosep,leftmargin=1.2em}
+\titleformat{\section}{\large\bfseries}{\thesection.}{0.5em}{}
+\titlespacing*{\section}{0pt}{10pt}{4pt}
+\titleformat{\subsection}{\normalsize\bfseries}{\thesubsection}{0.5em}{}
+\titlespacing*{\subsection}{0pt}{6pt}{2pt}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{4pt}
+\renewcommand{\arraystretch}{1.18}
+\newcolumntype{L}{>{\raggedright\arraybackslash}X}
+\pagestyle{fancy}\fancyhf{}
+\rhead{\small Shift-Change Request Agent -- Evaluation report}
+\lhead{\small Rishi Kharya}
+\cfoot{\small\thepage}
+\renewcommand{\headrulewidth}{0.3pt}
+
+\begin{document}
+
+\begin{center}
+{\LARGE\bfseries Shift-Change Request Agent}\\[3pt]
+{\large Evaluation report}\\[4pt]
+{\small Rishi Kharya \quad$\cdot$\quad \href{https://github.com/krish1809/shift-change-agent}{github.com/krish1809/shift-change-agent}}
+\end{center}
+
+\section{Summary}
+
+A multi-tenant chat agent that handles employee cab shift-change requests. The design rule is
+\emph{the LLM proposes, code disposes}: the model interprets the message and chooses a tool, copying the user's
+own words; identity, tenant isolation, business rules, seat booking, approvals and every sentence that states an
+outcome are deterministic code. Stack: Python 3.12, FastAPI, LangGraph (Postgres checkpointer), Postgres 16, JWT.
+
+\begin{center}
+\begin{tabularx}{\textwidth}{lL}
+\toprule
+\textbf{Measure} & \textbf{Result} \\
+\midrule
+Automated tests (fake LLM, real Postgres, frozen clock) & \textbf{321 passed} \\
+Evaluation set, scripted model (\texttt{eval/results.fake.jsonl}) & \textbf{60 / 60} cases pass, 9 categories \\
+Evaluation set, real model (\texttt{eval/results.live.jsonl}) & \textbf{\livepass{} / \livetotal{}} cases pass (Groq \texttt{openai/gpt-oss-20b}, Gemini fallback) \\
+Reply latency with the real LLM (\liveturns{} turns) & p50 \livepfifty{}\,s, \textbf{p95 \liveninetyfive{}\,s}, max \livemax{}\,s \quad (target: p95 $<$ 5\,s; 4.1\,s under free-tier throttling) \\
+LLM calls per employee message & real model: always \textbf{1}; scripted worst case 2; hard cap 4 enforced in code \\
+Bonus (last seat + double submit) & exactly one seat and one request in 20/20 runs per scenario \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\section{Method}
+
+\textbf{Two layers of evidence.}
+\begin{itemize}
+\item \textbf{pytest} proves code-level guarantees: rule boundaries per company, the time resolver, atomic booking
+  under real concurrency (separate connections, \texttt{asyncio.gather}, 20 repetitions, no sleeps), the tool gate
+  and executor, full HTTP conversations, approval with \emph{real restarts} (the application is shut down and a new
+  instance is built on the same database), one test per failure mode, and hostile inputs. Tests never call a real
+  LLM; a scripted fake model is used, so a quota error can never fail a test.
+\item \textbf{Evaluation set} (\texttt{eval/cases.jsonl}, 60 cases) runs end to end through the real application
+  in-process. A case is a sequence of steps: user messages, application restarts, clock moves, injected tool faults,
+  manager decisions, a decision recorded without resuming (simulated crash), a sweeper pass, concurrent requests
+  and direct API calls.
+\end{itemize}
+
+\textbf{Two modes.} \emph{Fake mode} scripts the model output for each step, including wrong, malicious and garbage
+output, so everything downstream of the model is tested deterministically and offline. \emph{Live mode} ignores
+the scripts and uses the real model, measuring whether it chooses the right tool and copies the right words, plus
+real latency. 24 of the 60 cases only make sense in fake mode (scripted bad output, crash simulation, fault control),
+so live mode runs 36.
+
+\textbf{Judging is deterministic} --- no LLM-as-judge. Each case states only what it cares about and the runner checks
+it exactly: outcome status per step, tools called, final database state (roster, seats taken, request rows),
+HTTP status, LLM-call budget, and substrings of the \emph{templated} reply (times, numbers, phone numbers).
+In live mode a different but equally safe tool path is accepted where the case says so (e.g.\ a polite refusal
+instead of a read for a prompt-injection message); outcome and database checks remain exact.
+The harness was validated by feeding it a deliberately wrong expectation, which it failed with a precise message.
+Every result line has exactly the fields \texttt{id, input, expected, actual, pass, notes}.
+
+\section{Test scenarios}
+
+\begin{center}
+\begin{tabularx}{\textwidth}{>{\raggedright\arraybackslash}p{3.2cm}cL}
+\toprule
+\textbf{Category} & \textbf{Cases} & \textbf{What is checked} \\
+\midrule
+Cross-company isolation & 9 & Another company's trip id cannot be booked; only the caller's roster is read; ``I'm actually G001'' changes nothing; another user's session id is a fresh thread; identity fields in the body (422) or in model output are rejected; each company's reply quotes only its own rules; another company's manager gets 404 \\
+Cut-off rejection & 7 & Boundary at the deadline (allowed) and one minute after; Globex hard rule vs Acme escalatable rule; moving \emph{earlier} measured from the earlier trip; cancel after cut-off; ``my manager already said OK'' \\
+Resume after restart & 8 & Approve and reject after a restart; decision recorded then crash, sweeper resumes exactly once; seat taken meanwhile (honest ``approved but unavailable''); expiry; status while pending; withdraw then decide (409); double approve \\
+Tool selection & 10 & Change, options, own schedule, policy, cancel, status, yes/no, small talk, ``I'm the manager'', Hinglish \\
+Tool failure & 8 & Read timeout; write fails once (retried, one row); write commits after the timeout (reconciled, reported as done); model rate-limited; garbage model output; a model that loops; cab filled while deciding; internal error \\
+Clarification & 7 & ``a bit late'' gives a question with real options; ``make it 9 instead''; trip-type question over three turns; invented time becomes a confirmation; ``the second one''; no trip at the asked time (never snapped) \\
+Capacity \& policy & 5 & Full cab; Acme caps a 6-seat vehicle at 4; change window; Globex daily limit; already on that trip \\
+Concurrency (bonus) & 2 & Two employees, last seat: one \texttt{APPLIED}, one \texttt{SEAT\_TAKEN}; double submit: one request, one seat \\
+Input safety & 4 & Empty, oversized, prompt injection, tampered JWT \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\section{Results}
+
+\begin{center}
+\begin{tabular}{lcc}
+\toprule
+\textbf{Category} & \textbf{Fake mode} & \textbf{Live mode} \\
+\midrule
+LIVEROWS
+\midrule
+\textbf{Total} & \textbf{60 / 60} & \textbf{\livepass{} / \livetotal{}} \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+The LLM-call budget check (BUD-01) passes over every turn of every case: the maximum is 2 calls in fake mode
+(one repair of an invalid tool call) and 1 with the real model. Latency is measured end to end, including the model call, over the \liveturns{} live-mode turns
+(\livedate{}): p50 \livepfifty{}\,s, \textbf{p95 \liveninetyfive{}\,s}. A separate 76-message benchmark run earlier
+under free-tier throttling (HTTP 429 from the primary, retried on the slower fallback) gave p95 4.1\,s
+(\texttt{eval/latency.json}) --- still under the target, and the honest worst case. The target is held by one LLM call
+per message, a 4\,s cap per call, skipping a rate-limited provider for 60\,s, and an 8\,s hard deadline per turn.
+
+\section{Known failures and what they taught us}
+
+\textbf{Found by tests and fixed} (each now has a regression test that fails on the old code):
+\begin{itemize}
+\item \textbf{Deadlock in the last-seat race.} The foreign-key check on the request insert took a \texttt{KEY SHARE}
+  lock on the trip; a later \texttt{SELECT \ldots FOR UPDATE} in the competing transaction deadlocked. Fixed by locking
+  both trips in id order with \texttt{FOR NO KEY UPDATE} before any insert.
+\item \textbf{A NUL character returned HTTP 500}: the JSONB checkpoint cannot store \texttt{\textbackslash u0000}.
+  Control characters are now stripped at the API boundary.
+\item \textbf{Asking again after a manager's rejection was reported as a duplicate} (the escalation key did not vary
+  per offer); \textbf{``withdraw it'' could target another chat's request}; \textbf{a chat stayed in ``waiting for
+  manager'' mode} after its request was withdrawn elsewhere.
+\item \textbf{With the demo clock set ahead of real time, every JWT was rejected}: the JWT library checked
+  \emph{issued-at} against the wall clock while the issuer used the demo clock. Found by walking through the demo,
+  not by the suite, because test clocks are in the past. All time claims now use the same injected clock.
+\end{itemize}
+
+\textbf{Found only with the real model} (first live run: 18/36). The agent asked ``which day?'' for ``the 8\,pm drop''
+(now: the next trip of that type, and the reply names the day); time grounding was too literal (\texttt{9:00 pm} vs
+the user's \texttt{9 pm} --- now equivalent explicit times count, but a bare \texttt{8} can never silently become
+\texttt{20:00}); the model sometimes answered in prose or chose the wrong read tool (prompt rule, a deterministic
+second chance, and tool descriptions with example phrases).
+
+\textbf{Remaining live behaviour.} On the free tier the provider can rate-limit (HTTP 429). The agent then uses the
+fallback provider and, failing that, a rule-based interpreter; otherwise it replies ``nothing was changed, please try
+again''. A live run made mostly on the Gemini fallback scored 32/36: two calls timed out and two times Gemini listed
+cab options where a clarifying question was expected. Expectations were not loosened to hide this.
+LIVEFAILNOTE
+
+\section{Limitations}
+\begin{itemize}
+\item Free-tier capacity: one agent call costs about 1{,}250 tokens and the free tier allows 200{,}000 tokens per day
+  for the model used --- roughly 160 messages per day per account before the fallbacks take over.
+\item English and basic Hinglish only; the rule-based degraded mode understands canonical phrasings only.
+\item No push notifications: the decision appears in the chat thread and the demo UI polls every 2\,s.
+\item A cancelled trip cannot be re-booked through the chat; one timezone per company (seed data: Asia/Kolkata).
+\item The JWT issuer and all services are mocks, as the brief allows.
+\end{itemize}
+
+\section{Trade-offs}
+\begin{enumerate}
+\item \textbf{Templated replies instead of LLM-written replies.} We give up some warmth and variety. In return the
+  agent can never confirm something that did not happen (every outcome sentence is filled from a committed database
+  result), replies are consistent across companies, and the second LLM call per message disappears, which is what
+  keeps p95 under 5\,s on a free tier.
+\item \textbf{No seat hold while waiting for a manager.} Holding a scarce seat for hours would block other employees.
+  We re-validate when the decision arrives instead, accepting an honest ``approved, but the cab filled up'' outcome
+  with fresh options.
+\item \textbf{Postgres for everything, no Redis.} Seat, request and audit rows commit in one transaction, the LangGraph
+  checkpoint lives in the same database, and an advisory lock serialises turns per conversation. One store is
+  simpler to reason about and makes the concurrency bonus provable.
+\item \textbf{Deterministic judging instead of an LLM judge.} Reproducible, free and explainable; it cannot grade the
+  tone of a reply, which matters less because the replies are templates.
+\end{enumerate}
+
+\section{Reproduce}
+\begin{tabular}{@{}ll@{}}
+Start (API + demo UI) & \texttt{docker compose up -{}-build} \quad$\rightarrow$ \texttt{http://localhost:8000} \\
+Tests & \texttt{docker compose run -{}-rm tests} \\
+Evaluation set, scripted & \texttt{docker compose run -{}-rm eval} \quad$\rightarrow$ \texttt{eval/results.fake.jsonl} \\
+Evaluation set, real model & \texttt{make eval-live} (needs a Groq or Gemini key in \texttt{.env}) \\
+Restart proof & \texttt{./scripts/e2e\_restart.sh} \\
+\end{tabular}
+
+\end{document}
