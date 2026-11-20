@@ -61,8 +61,12 @@ class GetMyPolicyArgs(ToolArgs):
 DESCRIPTIONS = {
     "get_my_roster": "Show the user's own pickups/drops for a date other than today/tomorrow.",
     "check_cab_options": "List cabs with free seats the user could switch to (does not change anything).",
-    "request_shift_change": "Change (reschedule) or cancel one of the user's pickups/drops. Rules are checked by the system.",
-    "respond_to_offer": "The user answered yes/no to the question in the last reply (send to manager? / did you mean?).",
+    "request_shift_change": (
+        "Change (reschedule) or cancel one of the user's pickups/drops. Rules are checked by the system."
+    ),
+    "respond_to_offer": (
+        "The user answered yes/no to the question in the last reply (send to manager? / did you mean?)."
+    ),
     "get_request_status": "Status of the user's shift-change request (default: latest open one).",
     "withdraw_request": "Withdraw the user's request that is waiting for manager approval.",
     "get_my_policy": "The user's company rules: cut-offs, how far a trip can move, daily limits.",
